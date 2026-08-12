@@ -1,11 +1,17 @@
 # -*- coding: utf-8 -*-
 
+import hashlib
+from io import BytesIO
+
 import plexpy
 from plexpy.media_backend.base import MediaBackend
 from plexpy.media_backend.capabilities import BackendCapabilities
-from plexpy.media_backend.errors import BackendConfigurationError, BackendFeatureUnsupportedError
+from plexpy.media_backend.errors import (
+    BackendConfigurationError, BackendFeatureUnsupportedError, BackendServerError,
+)
 from plexpy.media_backend.idmap import ExternalIdMapper
-from plexpy.media_backend.jellyfin.client import JellyfinClient
+from plexpy.media_backend.jellyfin.client import JellyfinClient, JellyfinImage
+from plexpy.media_backend.jellyfin.metadata import JellyfinMetadataAdapter, parse_image_reference
 
 
 JELLYFIN_CAPABILITIES = BackendCapabilities()
@@ -47,7 +53,10 @@ class JellyfinBackend(MediaBackend):
 
     @property
     def metadata(self):
-        self._unsupported('Metadata')
+        if self._metadata is None:
+            self._metadata = JellyfinMetadataAdapter(
+                self.client, self.mapper, getattr(plexpy.CONFIG, 'METADATA_CACHE_SECONDS', 1800))
+        return self._metadata
 
     def _ensure_connected(self):
         if self.client.server_id is None:
@@ -73,15 +82,68 @@ class JellyfinBackend(MediaBackend):
     def get_current_activity(self, skip_cache=False):
         self._unsupported('Current activity')
     def get_metadata_details(self, local_item_id, **kwargs):
-        self._unsupported('Metadata')
+        for legacy in ('sync_id', 'plex_guid', 'epg_key'):
+            if kwargs.get(legacy):
+                self._unsupported(legacy)
+        allowed = {key: kwargs[key] for key in ('skip_cache', 'media_info', 'user_id') if key in kwargs}
+        return self.metadata.from_local(local_item_id, **allowed)
     def get_item_children(self, local_item_id, **kwargs):
-        self._unsupported('Item children')
+        return self.metadata.get_children(local_item_id, **kwargs)
     def get_recently_added(self, **kwargs): self._unsupported('Recently added')
     def get_libraries(self): self._unsupported('Libraries')
     def get_users(self): self._unsupported('Users')
     def search(self, query, **kwargs): self._unsupported('Search')
     def get_image(self, image_ref, **kwargs):
-        self._unsupported('Images')
+        _, external_id, image_type, image_index = parse_image_reference(image_ref)
+        image = self.client.get_image(external_id, image_type=image_type, image_index=image_index)
+        transform_keys = ('width', 'height', 'opacity', 'background', 'blur', 'img_format', 'clip')
+        if not any(kwargs.get(key) not in (None, '', False) for key in transform_keys):
+            return image
+        return self._transform_image(image, **kwargs)
+
+    @staticmethod
+    def _transform_image(image, width=None, height=None, opacity=None, background=None,
+                         blur=None, img_format='png', clip=False, **kwargs):
+        try:
+            from PIL import Image, ImageColor, ImageFilter, ImageOps, UnidentifiedImageError
+            with Image.open(BytesIO(image.data)) as source:
+                source.load()
+                result = source.convert('RGBA')
+                size = tuple(max(1, int(value)) for value in (
+                    width or result.width, height or result.height))
+                if clip:
+                    result = ImageOps.fit(result, size, method=Image.Resampling.LANCZOS)
+                else:
+                    result.thumbnail(size, Image.Resampling.LANCZOS)
+                if blur not in (None, '', 0, '0'):
+                    result = result.filter(ImageFilter.GaussianBlur(radius=max(0, float(blur)) / 10.0))
+                if opacity not in (None, ''):
+                    alpha = result.getchannel('A').point(
+                        lambda value: round(value * max(0, min(100, float(opacity))) / 100.0))
+                    result.putalpha(alpha)
+                if background:
+                    canvas = Image.new('RGBA', result.size, ImageColor.getcolor(str(background), 'RGBA'))
+                    canvas.alpha_composite(result)
+                    result = canvas
+                output_format = str(img_format or 'png').upper()
+                if output_format == 'JPG':
+                    output_format = 'JPEG'
+                if output_format not in ('PNG', 'JPEG'):
+                    raise ValueError('unsupported output format')
+                if output_format == 'JPEG':
+                    flattened = Image.new('RGB', result.size, (255, 255, 255))
+                    flattened.paste(result, mask=result.getchannel('A'))
+                    result = flattened
+                output = BytesIO()
+                result.save(output, format=output_format)
+        except (OSError, ValueError, TypeError, UnidentifiedImageError) as error:
+            raise BackendServerError('Unable to transform Jellyfin image') from error
+        data = output.getvalue()
+        return JellyfinImage(
+            data=data,
+            content_type='image/png' if output_format == 'PNG' else 'image/jpeg',
+            etag='"{}"'.format(hashlib.sha256(data).hexdigest()),
+        )
     def terminate_session(self, session_id, message=None): self._unsupported('Session termination')
     def get_devices(self): self._unsupported('Devices')
     def get_playlists(self, **kwargs): self._unsupported('Playlists')

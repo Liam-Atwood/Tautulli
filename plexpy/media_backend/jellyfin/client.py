@@ -221,6 +221,11 @@ class JellyfinClient:
         params = {key: _comma_list(value) for key, value in params.items() if value is not None}
         return self._request('GET', 'Items', params=params or None)
 
+    def get_ancestors(self, item_id, user_id=None):
+        params = {'userId': user_id} if user_id is not None else None
+        return self._request(
+            'GET', 'Items/{}/Ancestors'.format(quote(str(item_id), safe='')), params=params)
+
     def get_users(self):
         return self._request('GET', 'Users')
 

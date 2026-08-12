@@ -53,7 +53,7 @@ def get_server_friendly_name():
     return server_name
 
 
-class PmsConnect(object):
+class _LegacyPmsConnect(object):
     """
     Retrieve data from Plex Server
     """
@@ -3446,3 +3446,209 @@ class PmsConnect(object):
                 dvrs_output.append(dvr_info)
 
         return dvrs_output
+
+
+class PmsConnect(object):
+    """Compatibility facade preserving the complete legacy Plex API surface."""
+
+    def __init__(self, url=None, token=None):
+        from plexpy.media_backend.factory import get_media_backend
+        self.backend = get_media_backend(url=url, token=token)
+
+    @property
+    def url(self):
+        return self.backend.legacy.url
+
+    @property
+    def token(self):
+        return self.backend.legacy.token
+
+    @property
+    def timeout(self):
+        return self.backend.legacy.timeout
+
+    @property
+    def ssl_verify(self):
+        return self.backend.legacy.ssl_verify
+
+    @property
+    def request_handler(self):
+        return self.backend.legacy.request_handler
+
+    def get_sessions(self, output_format=''):
+        return self.backend.get_sessions(output_format=output_format)
+
+    def get_sessions_terminate(self, session_id='', reason=''):
+        return self.backend.get_sessions_terminate(session_id=session_id, reason=reason)
+
+    def get_metadata(self, rating_key='', output_format=''):
+        return self.backend.get_metadata(rating_key=rating_key, output_format=output_format)
+
+    def get_epg_metadata(self, epg_key='', output_format=''):
+        return self.backend.get_epg_metadata(epg_key=epg_key, output_format=output_format)
+
+    def get_metadata_children(self, rating_key='', collection=False, output_format=''):
+        return self.backend.get_metadata_children(rating_key=rating_key, collection=collection,
+                                                  output_format=output_format)
+
+    def get_metadata_grandchildren(self, rating_key='', output_format=''):
+        return self.backend.get_metadata_grandchildren(rating_key=rating_key, output_format=output_format)
+
+    def get_playlist_items(self, rating_key='', output_format=''):
+        return self.backend.get_playlist_items(rating_key=rating_key, output_format=output_format)
+
+    def get_recently_added(self, start='0', count='0', output_format=''):
+        return self.backend.legacy.get_recently_added(start=start, count=count, output_format=output_format)
+
+    def get_library_recently_added(self, section_id='', start='0', count='0', output_format=''):
+        return self.backend.get_library_recently_added(section_id=section_id, start=start, count=count,
+                                                       output_format=output_format)
+
+    def get_children_list_related(self, rating_key='', output_format=''):
+        return self.backend.get_children_list_related(rating_key=rating_key, output_format=output_format)
+
+    def get_childrens_list(self, rating_key='', output_format=''):
+        return self.backend.get_childrens_list(rating_key=rating_key, output_format=output_format)
+
+    def get_server_list(self, output_format=''):
+        return self.backend.get_server_list(output_format=output_format)
+
+    def get_server_prefs(self, output_format=''):
+        return self.backend.get_server_prefs(output_format=output_format)
+
+    def get_local_server_identity(self, output_format=''):
+        return self.backend.get_local_server_identity(output_format=output_format)
+
+    def get_libraries_list(self, output_format=''):
+        return self.backend.get_libraries_list(output_format=output_format)
+
+    def get_library_list(self, section_id='', list_type='all', start=0, count=0, sort_type='',
+                         label_key='', output_format=''):
+        return self.backend.get_library_list(section_id=section_id, list_type=list_type, start=start, count=count,
+                                             sort_type=sort_type, label_key=label_key, output_format=output_format)
+
+    def fetch_library_list(self, section_id='', list_type='all', count='', sort_type='',
+                           label_key='', output_format=''):
+        return self.backend.fetch_library_list(section_id=section_id, list_type=list_type, count=count,
+                                               sort_type=sort_type, label_key=label_key,
+                                               output_format=output_format)
+
+    def get_library_labels(self, section_id='', output_format=''):
+        return self.backend.get_library_labels(section_id=section_id, output_format=output_format)
+
+    def get_sync_item(self, sync_id='', output_format=''):
+        return self.backend.get_sync_item(sync_id=sync_id, output_format=output_format)
+
+    def get_sync_transcode_queue(self, output_format=''):
+        return self.backend.get_sync_transcode_queue(output_format=output_format)
+
+    def get_search(self, query='', limit='', output_format=''):
+        return self.backend.get_search(query=query, limit=limit, output_format=output_format)
+
+    def get_account(self, output_format=''):
+        return self.backend.get_account(output_format=output_format)
+
+    def put_refresh_reachability(self):
+        return self.backend.put_refresh_reachability()
+
+    def put_updater(self, output_format=''):
+        return self.backend.put_updater(output_format=output_format)
+
+    def get_updater(self, output_format=''):
+        return self.backend.get_updater(output_format=output_format)
+
+    def get_hub_recently_added(self, start='0', count='0', media_type='', other_video=False, output_format=''):
+        return self.backend.get_hub_recently_added(start=start, count=count, media_type=media_type,
+                                                   other_video=other_video, output_format=output_format)
+
+    def get_dvrs(self, output_format=''):
+        return self.backend.get_dvrs(output_format=output_format)
+
+    def get_recently_added_details(self, start='0', count='0', media_type='', section_id=''):
+        return self.backend.get_recently_added_details(start=start, count=count, media_type=media_type,
+                                                       section_id=section_id)
+
+    def get_metadata_details(self, rating_key='', sync_id='', plex_guid='', epg_key='', section_id='',
+                             skip_cache=False, cache_key=None, return_cache=False, media_info=True):
+        return self.backend.get_metadata_details(
+            rating_key, sync_id=sync_id, plex_guid=plex_guid, epg_key=epg_key, section_id=section_id,
+            skip_cache=skip_cache, cache_key=cache_key, return_cache=return_cache, media_info=media_info)
+
+    def get_metadata_children_details(self, rating_key='', get_children=False, media_type=None, section_id=None):
+        return self.backend.get_metadata_children_details(rating_key=rating_key, get_children=get_children,
+                                                          media_type=media_type, section_id=section_id)
+
+    def get_library_metadata_details(self, section_id=''):
+        return self.backend.get_library_metadata_details(section_id=section_id)
+
+    def get_current_activity(self, skip_cache=False):
+        return self.backend.get_current_activity(skip_cache=skip_cache)
+
+    def get_session_each(self, session=None, skip_cache=False):
+        return self.backend.get_session_each(session=session, skip_cache=skip_cache)
+
+    def terminate_session(self, session_key='', session_id='', message=''):
+        if session_key:
+            return self.backend.legacy.terminate_session(session_key=session_key, session_id=session_id, message=message)
+        return self.backend.terminate_session(session_id=session_id, message=message)
+
+    def get_item_children(self, rating_key='', media_type=None, get_grandchildren=False):
+        return self.backend.get_item_children(rating_key, media_type=media_type,
+                                              get_grandchildren=get_grandchildren)
+
+    def get_item_children_related(self, rating_key=''):
+        return self.backend.get_item_children_related(rating_key=rating_key)
+
+    def get_servers_info(self):
+        return self.backend.get_servers_info()
+
+    def get_server_identity(self):
+        return self.backend.get_server_identity()
+
+    def get_server_pref(self, pref=None):
+        return self.backend.get_server_pref(pref=pref)
+
+    def get_server_children(self):
+        return self.backend.get_server_children()
+
+    def get_library_children_details(self, section_id='', section_type='', list_type='all', count='',
+                                     rating_key='', label_key='', get_media_info=False):
+        return self.backend.get_library_children_details(
+            section_id=section_id, section_type=section_type, list_type=list_type, count=count,
+            rating_key=rating_key, label_key=label_key, get_media_info=get_media_info)
+
+    def get_library_details(self):
+        return self.backend.get_library_details()
+
+    def get_library_label_details(self, section_id=''):
+        return self.backend.get_library_label_details(section_id=section_id)
+
+    def get_image(self, img=None, width=1000, height=1500, opacity=None, background=None, blur=None,
+                  img_format='png', clip=False, refresh=False, **kwargs):
+        return self.backend.get_image(img, width=width, height=height, opacity=opacity, background=background,
+                                      blur=blur, img_format=img_format, clip=clip, refresh=refresh, **kwargs)
+
+    def get_search_results(self, query='', limit=''):
+        return self.backend.get_search_results(query=query, limit=limit)
+
+    def get_rating_keys_list(self, rating_key='', media_type=''):
+        return self.backend.get_rating_keys_list(rating_key=rating_key, media_type=media_type)
+
+    def get_server_response(self):
+        return self.backend.get_server_response()
+
+    def get_update_staus(self):
+        return self.backend.get_update_staus()
+
+    def set_server_version(self):
+        return self.backend.set_server_version()
+
+    def get_server_update_channel(self):
+        return self.backend.get_server_update_channel()
+
+    @staticmethod
+    def get_dynamic_range(stream):
+        return _LegacyPmsConnect.get_dynamic_range(stream)
+
+    def get_dvrs_list(self):
+        return self.backend.get_dvrs_list()

@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://jellyfin-tautulli.invalid/contracts/metadata.schema.json",
+  "title": "Legacy Tautulli metadata contract",
+  "type": "object",
+  "required": [
+    "media_type", "section_id", "library_name", "rating_key", "parent_rating_key",
+    "grandparent_rating_key", "title", "parent_title", "grandparent_title", "original_title",
+    "sort_title", "media_index", "parent_media_index", "studio", "content_rating", "summary",
+    "tagline", "rating", "audience_rating", "user_rating", "duration", "year", "thumb",
+    "parent_thumb", "grandparent_thumb", "art", "banner", "originally_available_at", "added_at",
+    "updated_at", "last_viewed_at", "guid", "parent_guid", "grandparent_guid", "directors",
+    "writers", "actors", "genres", "labels", "collections", "guids", "markers", "full_title",
+    "media_info"
+  ],
+  "properties": {
+    "directors": {"type": "array"}, "writers": {"type": "array"}, "actors": {"type": "array"},
+    "genres": {"type": "array"}, "labels": {"type": "array"}, "collections": {"type": "array"},
+    "guids": {"type": "array"}, "markers": {"type": "array"}, "media_info": {"type": "array"}
+  },
+  "additionalProperties": true
+}

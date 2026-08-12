@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://jellyfin-tautulli.invalid/contracts/current_activity.schema.json",
+  "title": "Legacy Tautulli current activity contract",
+  "type": "object",
+  "required": ["stream_count", "sessions"],
+  "properties": {
+    "stream_count": {"type": ["string", "integer"]},
+    "sessions": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/session"}
+    }
+  },
+  "additionalProperties": true,
+  "$defs": {
+    "legacyValue": {"type": ["string", "integer", "number", "boolean", "null"]},
+    "session": {
+      "type": "object",
+      "required": [
+        "session_key", "session_id", "rating_key", "parent_rating_key", "grandparent_rating_key",
+        "section_id", "user_id", "machine_id", "guid", "media_type", "title", "parent_title",
+        "grandparent_title", "full_title", "media_index", "parent_media_index", "year", "duration",
+        "thumb", "parent_thumb", "grandparent_thumb", "art", "live", "state", "view_offset",
+        "progress_percent", "quality_profile", "username", "user", "friendly_name", "player", "product",
+        "product_version", "platform", "platform_version", "device", "ip_address", "ip_address_public",
+        "location", "local", "bandwidth", "secure", "relayed", "container", "bitrate", "width", "height",
+        "aspect_ratio", "video_codec", "video_resolution", "video_full_resolution", "video_framerate",
+        "video_profile", "audio_codec", "audio_channels", "audio_profile", "stream_container",
+        "stream_bitrate", "stream_video_codec", "stream_video_resolution", "stream_video_width",
+        "stream_video_height", "stream_video_framerate", "stream_video_dynamic_range", "stream_audio_codec",
+        "stream_audio_channels", "stream_audio_language", "stream_subtitle_codec", "stream_subtitle_language",
+        "stream_container_decision", "stream_video_decision", "stream_audio_decision",
+        "stream_subtitle_decision", "transcode_decision", "transcode_key", "transcode_progress",
+        "transcode_speed", "transcode_container", "transcode_protocol", "transcode_video_codec",
+        "transcode_audio_codec", "transcode_audio_channels", "transcode_width", "transcode_height",
+        "transcode_hw_decoding", "transcode_hw_encoding"
+      ],
+      "additionalProperties": true
+    }
+  }
+}

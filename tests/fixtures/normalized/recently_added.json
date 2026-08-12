@@ -1,0 +1,17 @@
+{
+  "recently_added": [
+    {
+      "media_type": "movie", "section_id": "1", "library_name": "Fixture Movies", "rating_key": "101",
+      "parent_rating_key": "", "grandparent_rating_key": "", "title": "Example Movie", "parent_title": "",
+      "grandparent_title": "", "original_title": "Example Movie", "sort_title": "Example Movie",
+      "media_index": "", "parent_media_index": "", "studio": "Fixture Studio", "content_rating": "PG",
+      "summary": "Sanitized fixture summary.", "tagline": "A fixture.", "rating": "8.0", "audience_rating": "7.5",
+      "user_rating": "", "duration": "600000", "year": "2024", "thumb": "/library/metadata/101/thumb/1",
+      "parent_thumb": "", "grandparent_thumb": "", "art": "/library/metadata/101/art/1", "banner": "",
+      "originally_available_at": "2024-01-01", "added_at": "1704067200", "updated_at": "1704067200",
+      "last_viewed_at": "", "guid": "plex://movie/sanitized", "parent_guid": "", "grandparent_guid": "",
+      "directors": [], "writers": [], "actors": [], "genres": ["Drama"], "labels": [], "collections": [],
+      "guids": ["imdb://tt0000001"], "markers": [], "full_title": "Example Movie", "media_info": []
+    }
+  ]
+}

@@ -1,0 +1,8 @@
+<MediaContainer size="1" librarySectionID="2" librarySectionTitle="Fixture TV">
+  <Video type="episode" ratingKey="202" parentRatingKey="201" grandparentRatingKey="200" title="Pilot" parentTitle="Season 1" grandparentTitle="Example Series" originalTitle="Pilot" titleSort="Pilot" index="1" parentIndex="1" studio="Fixture Studio" contentRating="TV-PG" summary="Sanitized episode." rating="8.5" audienceRating="8.1" duration="1200000" year="2024" thumb="/episode/thumb" parentThumb="/season/thumb" grandparentThumb="/series/thumb" art="/series/art" originallyAvailableAt="2024-01-02" addedAt="1704153600" updatedAt="1704153600" guid="plex://episode/sanitized" parentGuid="plex://season/sanitized" grandparentGuid="plex://show/sanitized">
+    <Director tag="Fixture Director"/><Writer tag="Fixture Writer"/><Role tag="Fixture Actor"/><Genre tag="Drama"/><Label tag="Fixture"/><Collection tag="Fixture Collection"/><Guid id="imdb://tt0000002"/>
+    <Media id="media-2" container="mkv" bitrate="8000" width="1920" height="1080" aspectRatio="1.78" videoCodec="h264" videoResolution="1080" videoFrameRate="24p" videoProfile="high" audioCodec="aac" audioChannels="2" audioProfile="lc" duration="1200000">
+      <Part id="part-2" container="mkv" duration="1200000"><Stream id="video-2" streamType="1" codec="h264" width="1920" height="1080"/><Stream id="audio-2" streamType="2" codec="aac" channels="2" language="English"/><Stream id="subtitle-2" streamType="3" codec="srt" language="English"/></Part>
+    </Media>
+  </Video>
+</MediaContainer>

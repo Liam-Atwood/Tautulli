@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "search_pattern": "plex|pms|rating_?key|machineIdentifier|librarySection|X-Plex|32400|/:/",
+  "included_extensions": [".bat", ".css", ".html", ".js", ".json", ".md", ".py", ".sh", ".spec", ".txt", ".xml", ".yaml", ".yml"],
+  "excluded_directories": [".git", "build", "cache", "dist", "logs"],
+  "rules": [
+    {"category": "plex_cloud_dependency", "pattern": "(?:app\\.)?plex\\.tv|metadata\\.provider\\.plex\\.tv|downloads\\.plex\\.tv"},
+    {"category": "plex_transport", "pattern": "X-Plex|32400|/:/"},
+    {"category": "public_api_compatibility", "path_pattern": "(?:^|/)API\\.md$|plexpy/api2\\.py$", "pattern": "plex|pms|rating_?key|machineIdentifier|librarySection"},
+    {"category": "plex_data_model", "pattern": "PlexServer|PlexTV|plexapi|ratingKey|machineIdentifier|librarySection"},
+    {"category": "legacy_compatible_identifier", "pattern": "plexpy|PmsConnect|PMS|pms|rating_key|section_id"},
+    {"category": "ui_assumption", "path_pattern": "data/interfaces/", "pattern": "plex|pms"},
+    {"category": "branding", "pattern": "plex"}
+  ]
+}

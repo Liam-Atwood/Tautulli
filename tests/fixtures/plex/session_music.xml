@@ -1,0 +1,10 @@
+<MediaContainer size="1">
+  <Track type="track" ratingKey="302" sessionKey="14" duration="180000" viewOffset="45000" guid="plex://track/sanitized">
+    <User id="1" title="fixture-admin"/>
+    <Player address="192.0.2.12" device="Speaker" platform="DLNA" product="DLNA" title="Fixture Speaker" machineIdentifier="device-music" state="playing" local="1"/>
+    <Session id="session-music" bandwidth="320" location="lan"/>
+    <Media id="media-3" selected="1" container="mp3" bitrate="320" audioCodec="mp3" audioChannels="2" duration="180000">
+      <Part id="part-3" selected="1" decision="directplay" container="mp3"><Stream id="audio-3" streamType="2" selected="1" codec="mp3" bitrate="320" channels="2" language="English" decision="direct play"/></Part>
+    </Media>
+  </Track>
+</MediaContainer>

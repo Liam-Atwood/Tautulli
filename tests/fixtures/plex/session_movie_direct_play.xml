@@ -1,0 +1,13 @@
+<MediaContainer size="1">
+  <Video type="movie" ratingKey="101" sessionKey="11" duration="600000" viewOffset="120000" guid="plex://movie/sanitized">
+    <User id="1" title="fixture-admin"/>
+    <Player address="192.0.2.10" remotePublicAddress="198.51.100.10" device="Browser" platform="Chrome" platformVersion="1" product="Plex Web" version="1.0" title="Fixture Player" machineIdentifier="device-sanitized" state="playing" local="1" relayed="0" secure="1"/>
+    <Session id="session-sanitized" bandwidth="12000" location="lan"/>
+    <Media id="media-1" selected="1" container="mkv" bitrate="8000" width="1920" height="1080" aspectRatio="1.78" videoCodec="h264" videoResolution="1080" videoFrameRate="24p" audioCodec="aac" audioChannels="2" duration="600000">
+      <Part id="part-1" selected="1" decision="directplay" container="mkv">
+        <Stream id="video-1" streamType="1" selected="1" codec="h264" bitrate="7600" bitDepth="8" width="1920" height="1080" scanType="progressive" decision="direct play"/>
+        <Stream id="audio-1" streamType="2" selected="1" codec="aac" bitrate="192" channels="2" language="English" languageCode="eng" decision="direct play"/>
+      </Part>
+    </Media>
+  </Video>
+</MediaContainer>

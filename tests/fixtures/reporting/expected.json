@@ -1,0 +1,9 @@
+{
+  "top_movies": {"title": "Example Movie", "total_plays": 2, "total_duration": 1040},
+  "top_tv": {"title": "Example Series", "total_plays": 2, "total_duration": 1200},
+  "top_music": {"title": "Example Track", "total_plays": 1, "total_duration": 180},
+  "top_users": {"friendly_name": "Fixture Admin", "total_plays": 3, "total_duration": 1320},
+  "top_platforms": {"platform": "Chrome", "total_plays": 3, "total_duration": 1320},
+  "library_sections": [1, 2, 3],
+  "max_concurrent": 2
+}

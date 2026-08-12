@@ -1,0 +1,15 @@
+<MediaContainer size="1">
+  <Video type="episode" ratingKey="202" sessionKey="12" duration="1200000" viewOffset="240000" guid="plex://episode/sanitized">
+    <User id="1" title="fixture-admin"/>
+    <Player address="192.0.2.11" remotePublicAddress="198.51.100.11" device="TV" platform="Android" platformVersion="13" product="Plex for Android" version="10" title="Fixture TV" machineIdentifier="device-transcode" state="playing" local="0" relayed="0" secure="1"/>
+    <Session id="session-transcode" bandwidth="4000" location="wan"/>
+    <TranscodeSession key="/transcode/session-sanitized" progress="20" speed="1.2" audioChannels="2" audioCodec="aac" videoCodec="h264" width="1280" height="720" container="mkv" protocol="http" transcodeHwRequested="1" transcodeHwDecoding="vaapi" transcodeHwEncoding="vaapi" transcodeHwFullPipeline="1" audioDecision="copy" videoDecision="transcode" subtitleDecision="burn"/>
+    <Media id="media-2" selected="1" container="mkv" bitrate="4000" width="1280" height="720" aspectRatio="1.78" videoCodec="h264" videoResolution="720" videoFrameRate="24p" audioCodec="aac" audioChannels="2" duration="1200000">
+      <Part id="part-2" selected="1" decision="transcode" container="mkv">
+        <Stream id="video-2" streamType="1" selected="1" codec="h264" bitrate="3600" bitDepth="8" width="1280" height="720" scanType="progressive" decision="transcode"/>
+        <Stream id="audio-2" streamType="2" selected="1" codec="aac" bitrate="192" channels="2" language="English" languageCode="eng" decision="copy"/>
+        <Stream id="subtitle-2" streamType="3" selected="1" codec="srt" language="English" languageCode="eng" decision="burn"/>
+      </Part>
+    </Media>
+  </Video>
+</MediaContainer>

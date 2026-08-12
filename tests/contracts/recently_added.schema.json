@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://jellyfin-tautulli.invalid/contracts/recently_added.schema.json",
+  "title": "Legacy Tautulli recently added contract",
+  "type": "object",
+  "required": ["recently_added"],
+  "properties": {
+    "recently_added": {
+      "type": "array",
+      "items": {"$ref": "metadata.schema.json"}
+    }
+  },
+  "additionalProperties": true
+}

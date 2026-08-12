@@ -3457,23 +3457,24 @@ class PmsConnect(object):
 
     @property
     def url(self):
-        return self.backend.legacy.url
+        return self.backend.url if hasattr(self.backend, 'url') else self.backend.legacy.url
 
     @property
     def token(self):
-        return self.backend.legacy.token
+        return self.backend.token if hasattr(self.backend, 'token') else self.backend.legacy.token
 
     @property
     def timeout(self):
-        return self.backend.legacy.timeout
+        return self.backend.timeout if hasattr(self.backend, 'timeout') else self.backend.legacy.timeout
 
     @property
     def ssl_verify(self):
-        return self.backend.legacy.ssl_verify
+        return self.backend.ssl_verify if hasattr(self.backend, 'ssl_verify') else self.backend.legacy.ssl_verify
 
     @property
     def request_handler(self):
-        return self.backend.legacy.request_handler
+        return (self.backend.request_handler if hasattr(self.backend, 'request_handler')
+                else self.backend.legacy.request_handler)
 
     def get_sessions(self, output_format=''):
         return self.backend.get_sessions(output_format=output_format)
@@ -3625,8 +3626,12 @@ class PmsConnect(object):
 
     def get_image(self, img=None, width=1000, height=1500, opacity=None, background=None, blur=None,
                   img_format='png', clip=False, refresh=False, **kwargs):
-        return self.backend.get_image(img, width=width, height=height, opacity=opacity, background=background,
-                                      blur=blur, img_format=img_format, clip=clip, refresh=refresh, **kwargs)
+        result = self.backend.get_image(img, width=width, height=height, opacity=opacity, background=background,
+                                        blur=blur, img_format=img_format, clip=clip, refresh=refresh, **kwargs)
+        from plexpy.media_backend.jellyfin.client import JellyfinImage
+        if isinstance(result, JellyfinImage):
+            return result.data, result.content_type
+        return result
 
     def get_search_results(self, query='', limit=''):
         return self.backend.get_search_results(query=query, limit=limit)

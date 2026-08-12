@@ -2,6 +2,7 @@ import inspect
 from dataclasses import FrozenInstanceError
 
 import pytest
+import plexpy
 
 from plexpy import pmsconnect
 from plexpy.media_backend.base import MediaBackend
@@ -71,7 +72,7 @@ def test_media_backend_declares_canonical_surface():
 
 def test_factory_rejects_unknown_backends():
     with pytest.raises(BackendConfigurationError, match='Unknown media backend'):
-        factory.get_media_backend('jellyfin')
+        factory.get_media_backend('emby')
 
 
 def test_factory_returns_fresh_plex_backends(monkeypatch):
@@ -84,6 +85,20 @@ def test_factory_returns_fresh_plex_backends(monkeypatch):
     second = factory.get_media_backend(url='http://two.invalid', token='two')
     assert first is not second and first.legacy is not second.legacy
     assert (first.legacy.url, second.legacy.url) == ('http://one.invalid', 'http://two.invalid')
+
+
+def test_factory_uses_configured_backend_and_returns_fresh_jellyfin(monkeypatch):
+    monkeypatch.setattr(plexpy, 'CONFIG', type('Config', (), {
+        'MEDIA_SERVER_TYPE': 'jellyfin', 'MEDIA_SERVER_URL': 'http://jellyfin.invalid',
+        'MEDIA_SERVER_TOKEN': 'token', 'MEDIA_SERVER_VERIFY_TLS': True,
+        'MEDIA_SERVER_ID': '', 'PMS_TIMEOUT': 15,
+    })())
+    first = factory.get_media_backend()
+    second = factory.get_media_backend()
+    assert first.__class__.__name__ == 'JellyfinBackend'
+    assert first is not second and first.client is not second.client
+    first.client.close()
+    second.client.close()
 
 
 def test_backend_errors_redact_secrets_and_keep_context():

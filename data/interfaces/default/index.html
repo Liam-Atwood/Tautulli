@@ -5,7 +5,7 @@
 </%def>
 
 <%def name="body()">
-<% from plexpy import PLEX_SERVER_UP %>
+<% from plexpy import MEDIA_SERVER_UP, PLEX_SERVER_UP %>
 <div class="container-fluid">
     % for section in config['home_sections']:
     % if section == 'current_activity':
@@ -23,14 +23,14 @@
                 </h3>
             </div>
             <div id="currentActivity">
-                % if PLEX_SERVER_UP:
+                % if MEDIA_SERVER_UP:
                 <div class="text-muted" id="dashboard-checking-activity"><i class="fa fa-refresh fa-spin"></i>&nbsp; Checking for activity...</div>
                 % elif config['pms_is_cloud']:
                 <div id="dashboard-no-activity" class="text-muted">Plex Cloud server is sleeping.</div>
                 % elif not config['first_run_complete']:
                 <div id="dashboard-no-activity" class="text-muted">The Tautulli setup wizard has not been completed. Please click <a href="welcome">here</a> to go to the setup wizard.</div>
                 % else:
-                <div class="text-muted" id="dashboard-checking-activity"><i class="fa fa-refresh fa-spin"></i>&nbsp; Tautulli is connecting to the Plex server...</div>
+                <div class="text-muted" id="dashboard-checking-activity"><i class="fa fa-refresh fa-spin"></i>&nbsp; Tautulli is connecting to the media server...</div>
                 % endif
             </div>
         </div>
@@ -66,7 +66,7 @@
             </div>
         </div>
     </div>
-    % elif section == 'library_stats':
+    % elif section == 'library_stats' and plexpy.CONFIG.MEDIA_SERVER_TYPE == 'plex':
     <div class="row">
         <div class="col-md-12">
             <div class="home-padded-header padded-header" id="library-statistics-header">
@@ -85,7 +85,7 @@
             </div>
         </div>
     </div>
-    % elif section == 'recently_added':
+    % elif section == 'recently_added' and plexpy.CONFIG.MEDIA_SERVER_TYPE == 'plex':
     <div class="row">
         <div class="col-md-12">
             <div class="home-padded-header padded-header">

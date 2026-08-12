@@ -88,6 +88,7 @@
             </div>
             <div class="collapse navbar-collapse navbar-right" id="navbar-collapse-1">
                 <ul class="nav navbar-nav">
+                    % if plexpy.CONFIG.MEDIA_SERVER_TYPE == 'plex':
                     <li>
                         <form action="search" method="get" class="form" id="search_form">
                             <div class="input-group">
@@ -100,20 +101,25 @@
                             </div>
                         </form>
                     </li>
+                    % endif
                     % if title == "Home":
                     <li class="active"><a href="home"><i class="fa fa-lg fa-home"></i></a></li>
                     % else:
                     <li><a href="home"><i class="fa fa-lg fa-home"></i></a></li>
                     % endif
+                    % if plexpy.CONFIG.MEDIA_SERVER_TYPE == 'plex':
                     % if title == "Libraries" or title == "Library" or title == "Info":
                     <li class="active"><a href="libraries">Libraries</a></li>
                     % else:
                     <li><a href="libraries">Libraries</a></li>
                     % endif
+                    % endif
+                    % if plexpy.CONFIG.MEDIA_SERVER_TYPE == 'plex':
                     % if title == "Users" or title == "User":
                     <li class="active"><a href="users">Users</a></li>
                     % else:
                     <li><a href="users">Users</a></li>
+                    % endif
                     % endif
                     % if title == "History":
                     <li class="active"><a href="history">History</a></li>

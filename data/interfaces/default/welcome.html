@@ -105,7 +105,28 @@
                     <span style="display: none;" id="authentication-status"></span>
                 </div>
 
-                <div class="wizard-card" data-cardname="card3">
+                <div class="wizard-card" data-cardname="card3" id="media-server-card">
+                    <h3>Media Server</h3>
+                    <div class="wizard-input-section">
+                        <label for="media_server_type">Backend</label>
+                        <select class="form-control" id="media_server_type" name="media_server_type">
+                            <option value="jellyfin" ${'selected' if config['media_server_type'] == 'jellyfin' else ''}>Jellyfin</option>
+                            <option value="plex" ${'selected' if config['media_server_type'] == 'plex' else ''}>Plex</option>
+                        </select>
+                    </div>
+                    <div id="jellyfin-server-settings">
+                        <div class="wizard-input-section"><label>Jellyfin Server URL</label><input class="form-control jellyfin-setting" name="media_server_url" id="media_server_url" value="${config['media_server_url']}" placeholder="https://jellyfin.example.com"></div>
+                        <div class="wizard-input-section"><label>API Token</label><input type="password" class="form-control jellyfin-setting" name="media_server_token" id="media_server_token" autocomplete="off"></div>
+                        <div class="wizard-input-section"><label><input type="checkbox" id="media_server_verify_tls_checkbox" ${helpers.checked(config['media_server_verify_tls'])}> Verify TLS certificate</label><input type="hidden" name="media_server_verify_tls" id="media_server_verify_tls" value="${int(config['media_server_verify_tls'])}"></div>
+                        <div class="wizard-input-section"><label>Display Name Override (optional)</label><input class="form-control" name="media_server_name_override" value="${config['media_server_name_override']}"></div>
+                        <div class="wizard-input-section"><label>Public Server URL (optional)</label><input class="form-control" name="media_server_public_url" value="${config['media_server_public_url']}"></div>
+                        <input type="hidden" id="jellyfin_valid" data-validate="validateJellyfin" value="">
+                        <button id="verify-jellyfin-server" class="btn btn-dark" type="button">Verify</button>
+                        <span id="jellyfin-verify-status"></span>
+                    </div>
+                </div>
+
+                <div class="wizard-card plex-setup-card" data-cardname="card3plex">
                     <h3>Plex Account</h3>
                     <div class="wizard-input-section">
                         <p class="help-block">
@@ -311,6 +332,13 @@
         return retValue;
     }
 
+    function validateJellyfin(el) {
+        if ($('#media_server_type').val() === 'jellyfin' && el.val() !== 'valid') {
+            return {status: false, msg: 'Please verify your Jellyfin server.'};
+        }
+        return {status: true};
+    }
+
     function isPositiveInt(n) {
         return $.isNumeric(n) && (Math.floor(n) == n) && (n >= 0)
     }
@@ -339,15 +367,18 @@ $(document).ready(function() {
     });
 
     wizard.on("submit", function(wizard) {
-        // Probably should not success before we know, but hopefully validation is good enough.
-        wizard.submitSuccess();
         $.ajax({
             type: "POST",
             url: wizard.args.submitUrl,
             data: wizard.serialize(),
             dataType: "json",
-            complete: function (data) {
-                $(".countdown").countdown(function () { location.reload(); }, 5, "");
+            success: function (data) {
+                if (data.result === 'success') {
+                    wizard.submitSuccess();
+                    $(".countdown").countdown(function () { location.reload(); }, 5, "");
+                } else {
+                    $('#jellyfin-verify-status').html('<i class="fa fa-exclamation-circle"></i> ' + data.message);
+                }
             }
         })
     });
@@ -360,6 +391,26 @@ $(document).ready(function() {
             $('#'+configToggle).val(0);
         }
     });
+
+    function toggleBackend() {
+        var jellyfin = $('#media_server_type').val() === 'jellyfin';
+        $('#jellyfin-server-settings').toggle(jellyfin);
+        $('.plex-setup-card').toggle(!jellyfin);
+    }
+    $('#media_server_type').change(function () { $('#jellyfin_valid').val(''); toggleBackend(); });
+    $('#media_server_verify_tls_checkbox').change(function () { $('#media_server_verify_tls').val(this.checked ? 1 : 0); $('#jellyfin_valid').val(''); });
+    $('.jellyfin-setting').change(function () { $('#jellyfin_valid').val(''); });
+    $('#verify-jellyfin-server').click(function () {
+        $('#jellyfin-verify-status').html('<i class="fa fa-refresh fa-spin"></i> Verifying...');
+        $.post('validate_jellyfin_server', {
+            media_server_url: $('#media_server_url').val(), media_server_token: $('#media_server_token').val(),
+            media_server_verify_tls: $('#media_server_verify_tls').val()
+        }, function (data) {
+            if (data.result === 'success') { $('#jellyfin_valid').val('valid'); $('#jellyfin-verify-status').html('<i class="fa fa-check"></i> ' + data.server.name + ' ' + data.server.version); }
+            else { $('#jellyfin_valid').val(''); $('#jellyfin-verify-status').html('<i class="fa fa-exclamation-circle"></i> ' + data.message); }
+        });
+    });
+    toggleBackend();
 
     var $select_pms = $('#pms_ip_selectize').selectize({
         createOnBlur: true,

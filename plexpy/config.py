@@ -40,6 +40,16 @@ def bool_int(value):
 FILENAME = "config.ini"
 
 _CONFIG_DEFINITIONS = {
+    'MEDIA_SERVER_TYPE': (str, 'Media Server', 'jellyfin'),
+    'MEDIA_SERVER_URL': (str, 'Media Server', ''),
+    'MEDIA_SERVER_TOKEN': (str, 'Media Server', ''),
+    'MEDIA_SERVER_ID': (str, 'Media Server', ''),
+    'MEDIA_SERVER_NAME': (str, 'Media Server', ''),
+    'MEDIA_SERVER_VERSION': (str, 'Media Server', ''),
+    'MEDIA_SERVER_PLATFORM': (str, 'Media Server', ''),
+    'MEDIA_SERVER_VERIFY_TLS': (bool_int, 'Media Server', 1),
+    'MEDIA_SERVER_NAME_OVERRIDE': (str, 'Media Server', ''),
+    'MEDIA_SERVER_PUBLIC_URL': (str, 'Media Server', ''),
     'ALLOW_GUEST_ACCESS': (int, 'General', 0),
     'ALLOW_MOUNTED_FOLDERS': (int, 'Advanced', 0),
     'DATE_FORMAT': (str, 'General', 'YYYY-MM-DD'),
@@ -147,6 +157,7 @@ _CONFIG_DEFINITIONS = {
     'LOG_BLACKLIST_USERNAMES': (int, 'General', 1),
     'LOG_DIR': (str, 'General', ''),
     'LOGGING_IGNORE_INTERVAL': (int, 'Monitoring', 120),
+    'LOCAL_NETWORKS': (list, 'Monitoring', ['127.0.0.0/8', '::1/128', '10.0.0.0/8', '172.16.0.0/12', '192.168.0.0/16', 'fd00::/8']),
     'METADATA_CACHE_SECONDS': (int, 'Advanced', 1800),
     'MOVIE_WATCHED_PERCENT': (int, 'Monitoring', 85),
     'MUSIC_WATCHED_PERCENT': (int, 'Monitoring', 85),
@@ -215,14 +226,26 @@ _DO_NOT_IMPORT_KEYS = [
     'HTTP_HOST', 'HTTP_PORT', 'HTTP_ROOT',
     'HTTP_USERNAME', 'HTTP_PASSWORD', 'HTTP_HASH_PASSWORD', 'HTTP_HASHED_PASSWORD',
     'ENABLE_HTTPS', 'HTTPS_CREATE_CERT', 'HTTPS_CERT', 'HTTPS_CERT_CHAIN', 'HTTPS_KEY',
-    'PMS_TOKEN', 'JWT_SECRET'
+    'PMS_TOKEN', 'MEDIA_SERVER_TOKEN', 'JWT_SECRET'
 ]
 _DO_NOT_IMPORT_KEYS_DOCKER = [
     'PLEXPY_AUTO_UPDATE', 'GIT_REMOTE', 'GIT_BRANCH'
 ]
 _DO_NOT_DOWNLOAD_KEYS = [
-    'PMS_TOKEN', 'JWT_SECRET'
+    'PMS_TOKEN', 'MEDIA_SERVER_TOKEN', 'JWT_SECRET'
 ]
+
+_MEDIA_SERVER_ALIASES = {
+    'PMS_URL': 'MEDIA_SERVER_URL',
+    'PMS_TOKEN': 'MEDIA_SERVER_TOKEN',
+    'PMS_IDENTIFIER': 'MEDIA_SERVER_ID',
+    'PMS_NAME': 'MEDIA_SERVER_NAME',
+    'PMS_VERSION': 'MEDIA_SERVER_VERSION',
+    'PMS_PLATFORM': 'MEDIA_SERVER_PLATFORM',
+    'PMS_NAME_OVERRIDE': 'MEDIA_SERVER_NAME_OVERRIDE',
+    'PMS_URL_OVERRIDE': 'MEDIA_SERVER_PUBLIC_URL',
+}
+_MEDIA_SERVER_LEGACY_NAMES = {canonical: legacy for legacy, canonical in _MEDIA_SERVER_ALIASES.items()}
 
 IS_IMPORTING = False
 IMPORT_THREAD = None
@@ -262,6 +285,15 @@ SETTINGS = [
     'HTTP_USERNAME',
     'IMGUR_CLIENT_ID',
     'LOGGING_IGNORE_INTERVAL',
+    'MEDIA_SERVER_TYPE',
+    'MEDIA_SERVER_URL',
+    'MEDIA_SERVER_TOKEN',
+    'MEDIA_SERVER_ID',
+    'MEDIA_SERVER_NAME',
+    'MEDIA_SERVER_VERSION',
+    'MEDIA_SERVER_PLATFORM',
+    'MEDIA_SERVER_NAME_OVERRIDE',
+    'MEDIA_SERVER_PUBLIC_URL',
     'LOG_DIR',
     'MOVIE_WATCHED_PERCENT',
     'MUSIC_WATCHED_PERCENT',
@@ -316,6 +348,7 @@ CHECKED_SETTINGS = [
     'LAUNCH_STARTUP',
     'LOG_BLACKLIST',
     'LOG_BLACKLIST_USERNAMES',
+    'MEDIA_SERVER_VERIFY_TLS',
     'MONITOR_PMS_UPDATES',
     'MUSICBRAINZ_LOOKUP',
     'NEWSLETTER_INLINE_STYLES',
@@ -449,6 +482,11 @@ class Config(object):
             logger.error("Tautulli Config :: Error reading configuration file: %s", e)
             raise
 
+        pms = self._config.get('PMS', {})
+        self._legacy_media_server_configured = any(
+            str(pms.get(key, '')).strip() for key in
+            ('pms_url', 'pms_token', 'pms_identifier', 'pms_name', 'pms_ip', 'pms_uuid'))
+
         for key in _CONFIG_DEFINITIONS:
             self.check_setting(key)
         if not is_import:
@@ -491,9 +529,17 @@ class Config(object):
     
     def get_setting(self, name):
         """ Get the value of a setting, either from the config file or environment variable """
-        key, definition_type, section, ini_key, default = self._define(name)
+        key = name.upper()
+        canonical = _MEDIA_SERVER_ALIASES.get(key)
+        if canonical:
+            canonical_value = self.get_setting(canonical)
+            if canonical_value not in ('', None):
+                return canonical_value
+        key, definition_type, section, ini_key, default = self._define(key)
         # Check if the key is in the environment variables
         value = self._from_env(key)
+        if not value and key in _MEDIA_SERVER_LEGACY_NAMES:
+            value = self._from_env(_MEDIA_SERVER_LEGACY_NAMES[key])
         if not value:
             # If not, check if the key is in the config file
             value = self._config[section].get(ini_key, default)
@@ -501,7 +547,11 @@ class Config(object):
     
     def set_setting(self, name, value):
         """ Set the value of a setting in the config file """
-        key, definition_type, section, ini_key, default = self._define(name)
+        key = name.upper()
+        canonical = _MEDIA_SERVER_ALIASES.get(key)
+        if canonical:
+            return self.set_setting(canonical, value)
+        key, definition_type, section, ini_key, default = self._define(key)
         # Check if the key is in the environment variables
         env_value = self._from_env(key)
         if env_value:
@@ -510,6 +560,11 @@ class Config(object):
 
         # If not, set the value in the config file
         self._config[section][ini_key] = self._cast_setting(definition_type, value, default)
+        legacy = _MEDIA_SERVER_LEGACY_NAMES.get(key)
+        if legacy:
+            _, legacy_type, legacy_section, legacy_ini_key, legacy_default = self._define(legacy)
+            self._config[legacy_section][legacy_ini_key] = self._cast_setting(
+                legacy_type, value, legacy_default)
         return self._config[section][ini_key]
     
     def _from_env(self, key):
@@ -552,8 +607,10 @@ class Config(object):
             new_config.write()
         except IOError as e:
             logger.error("Tautulli Config :: Error writing configuration file: %s", e)
+            return False
 
         self._blacklist()
+        return True
 
     def __getattr__(self, name):
         """
@@ -728,3 +785,15 @@ class Config(object):
                 self.ANON_REDIRECT_DYNAMIC = 1
 
             self.CONFIG_VERSION = 22
+
+        if self.CONFIG_VERSION == 22:
+            if self._legacy_media_server_configured:
+                self.MEDIA_SERVER_TYPE = 'plex'
+                pms = self._config.get('PMS', {})
+                for legacy, canonical in _MEDIA_SERVER_ALIASES.items():
+                    legacy_value = pms.get(legacy.lower(), '')
+                    if str(legacy_value).strip() and not self.get_setting(canonical):
+                        self.set_setting(canonical, legacy_value)
+            else:
+                self.MEDIA_SERVER_TYPE = 'jellyfin'
+            self.CONFIG_VERSION = 23

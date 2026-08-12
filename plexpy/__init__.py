@@ -115,6 +115,7 @@ DEV = False
 WEBSOCKET = None
 WS_CONNECTED = False
 PLEX_SERVER_UP = None
+MEDIA_SERVER_UP = None
 PLEX_REMOTE_ACCESS_UP = None
 
 TRACKER = None
@@ -444,7 +445,8 @@ def initialize_scheduler():
         schedule_job(config.make_backup, 'Backup Tautulli config',
                      hours=backup_hours, minutes=0, seconds=0, args=(True, True))
 
-        if WS_CONNECTED and CONFIG.PMS_IP and CONFIG.PMS_TOKEN:
+        plex_backend = CONFIG.MEDIA_SERVER_TYPE == 'plex'
+        if plex_backend and WS_CONNECTED and CONFIG.PMS_IP and CONFIG.PMS_TOKEN:
             schedule_job(plextv.get_server_resources, 'Refresh Plex server URLs',
                          hours=12 * (not bool(CONFIG.PMS_URL_MANUAL)), minutes=0, seconds=0)
 
@@ -481,9 +483,10 @@ def initialize_scheduler():
             schedule_job(libraries.refresh_libraries, 'Refresh libraries list',
                          hours=0, minutes=0, seconds=0)
 
-            # Schedule job to reconnect server
+            # Jellyfin is polling-only until Phase 7. Never start the legacy
+            # activity monitor or websocket reconnect path for that backend.
             schedule_job(activity_pinger.connect_server, 'Check for server response',
-                         hours=0, minutes=0, seconds=30, args=(False,))
+                         hours=0, minutes=0, seconds=30 * bool(plex_backend), args=(False,))
             schedule_job(web_socket.send_ping, 'Websocket ping',
                          hours=0, minutes=0, seconds=0)
 
@@ -570,6 +573,21 @@ def start():
 
 
 def startup_refresh():
+    if CONFIG.MEDIA_SERVER_TYPE == 'jellyfin':
+        global MEDIA_SERVER_UP, PLEX_SERVER_UP
+        if not CONFIG.FIRST_RUN_COMPLETE:
+            logger.info("Setup wizard not completed. Skipping Jellyfin server connection.")
+            return
+        try:
+            from plexpy.media_backend.factory import get_media_backend
+            get_media_backend('jellyfin').get_server_info()
+            MEDIA_SERVER_UP = PLEX_SERVER_UP = True
+            logger.info("Connected to Jellyfin server.")
+        except Exception as error:
+            MEDIA_SERVER_UP = PLEX_SERVER_UP = False
+            logger.error("Unable to connect to Jellyfin server: %s", error)
+        return
+
     # Check token hasn't expired
     if CONFIG.PMS_TOKEN:
         plextv.notify_token_expired()

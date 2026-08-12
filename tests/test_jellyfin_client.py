@@ -227,7 +227,7 @@ def test_trace_records_status_without_token(caplog):
     assert 'top-secret-token' not in caplog.text
 
 
-def test_factory_still_rejects_jellyfin_runtime_selection():
+def test_factory_selects_jellyfin_runtime():
     from plexpy.media_backend.factory import get_media_backend
-    with pytest.raises(BackendConfigurationError, match='Unknown media backend'):
-        get_media_backend('jellyfin')
+    backend = get_media_backend('jellyfin', url='http://example.invalid', token='token')
+    assert isinstance(backend.client, JellyfinClient)

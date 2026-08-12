@@ -72,6 +72,8 @@ from plexpy import users
 from plexpy import versioncheck
 from plexpy import web_socket
 from plexpy import webstart
+from plexpy.media_backend.errors import BackendError
+from plexpy.media_backend.jellyfin import JellyfinClient
 from plexpy.api2 import API2
 from plexpy.helpers import checked, addtoapi, get_ip, create_https_certificates, build_datatables_json, sanitize_out
 from plexpy.session import get_session_info, get_session_csrf_token, get_session_user_id, allow_session_user, allow_session_library
@@ -175,6 +177,11 @@ class WebInterface(object):
     @requireAuth(member_of("admin"))
     def welcome(self, **kwargs):
         config = {
+            "media_server_type": plexpy.CONFIG.MEDIA_SERVER_TYPE,
+            "media_server_url": plexpy.CONFIG.MEDIA_SERVER_URL,
+            "media_server_verify_tls": plexpy.CONFIG.MEDIA_SERVER_VERIFY_TLS,
+            "media_server_name_override": plexpy.CONFIG.MEDIA_SERVER_NAME_OVERRIDE,
+            "media_server_public_url": plexpy.CONFIG.MEDIA_SERVER_PUBLIC_URL,
             "pms_identifier": plexpy.CONFIG.PMS_IDENTIFIER,
             "pms_ip": plexpy.CONFIG.PMS_IP,
             "pms_port": plexpy.CONFIG.PMS_PORT,
@@ -190,6 +197,32 @@ class WebInterface(object):
             raise cherrypy.HTTPRedirect(plexpy.HTTP_ROOT + "home")
         else:
             return serve_template(template_name="welcome.html", title="Welcome", config=config)
+
+    @staticmethod
+    def _validate_jellyfin(url, token, verify_tls=True):
+        with JellyfinClient(url, token, verify_ssl=helpers.bool_true(verify_tls)) as client:
+            info = client.connect()
+            sessions = client.get_sessions()
+            users_result = client.get_users()
+            libraries_result = client.get_libraries()
+        if not isinstance(sessions, list) or not isinstance(users_result, list) or not isinstance(libraries_result, list):
+            raise BackendError('Jellyfin validation APIs returned unexpected data')
+        return {'media_server_type': 'jellyfin', 'id': info['Id'],
+                'name': info.get('ServerName', ''), 'version': info['Version'],
+                'platform': info.get('OperatingSystem', ''), 'url': client.base_url}
+
+    @cherrypy.expose
+    @cherrypy.tools.allow(methods=['POST'])
+    @cherrypy.tools.json_out()
+    @requireAuth(member_of("admin"))
+    def validate_jellyfin_server(self, media_server_url='', media_server_token='',
+                                 media_server_verify_tls=1, **kwargs):
+        token = media_server_token or plexpy.CONFIG.MEDIA_SERVER_TOKEN
+        try:
+            return {'result': 'success', 'server': self._validate_jellyfin(
+                media_server_url, token, media_server_verify_tls)}
+        except BackendError as error:
+            return {'result': 'error', 'message': str(error)}
 
     @cherrypy.expose
     @cherrypy.tools.allow(methods=['POST'])
@@ -3210,6 +3243,9 @@ class WebInterface(object):
             settings_dict['http_password'] = '    '
         else:
             settings_dict['http_password'] = ''
+        # Never render the media-server token back into a browser form. A blank
+        # value means "retain the configured token" when the connection is saved.
+        settings_dict['media_server_token'] = ''
 
         for key in ('home_sections', 'home_stats_cards', 'home_library_cards'):
             settings_dict[key] = json.dumps(settings_dict[key])
@@ -3231,6 +3267,26 @@ class WebInterface(object):
         https_changed = False
         refresh_libraries = False
         refresh_users = False
+        jellyfin_validation = None
+
+        requested_backend = kwargs.get('media_server_type', plexpy.CONFIG.MEDIA_SERVER_TYPE)
+        if str(requested_backend).lower() == 'jellyfin' and (
+                kwargs.get('first_run') or kwargs.get('server_changed')):
+            submitted_token = kwargs.get('media_server_token') or plexpy.CONFIG.MEDIA_SERVER_TOKEN
+            try:
+                jellyfin_validation = self._validate_jellyfin(
+                    kwargs.get('media_server_url', plexpy.CONFIG.MEDIA_SERVER_URL), submitted_token,
+                    kwargs.get('media_server_verify_tls', plexpy.CONFIG.MEDIA_SERVER_VERIFY_TLS))
+            except BackendError as error:
+                return {'result': 'error', 'message': str(error)}
+            kwargs.update({
+                'media_server_url': jellyfin_validation['url'],
+                'media_server_token': submitted_token,
+                'media_server_id': jellyfin_validation['id'],
+                'media_server_name': jellyfin_validation['name'],
+                'media_server_version': jellyfin_validation['version'],
+                'media_server_platform': jellyfin_validation['platform'],
+            })
 
         # First run from the setup wizard
         if kwargs.pop('first_run', None):
@@ -3325,10 +3381,14 @@ class WebInterface(object):
         if first_run:
             kwargs['first_run_complete'] = 1
 
+        previous_settings = {key: getattr(plexpy.CONFIG, key.upper()) for key in kwargs}
         plexpy.CONFIG.process_kwargs(kwargs)
 
         # Write the config
-        plexpy.CONFIG.write()
+        if not plexpy.CONFIG.write():
+            plexpy.CONFIG.process_kwargs(previous_settings)
+            plexpy.CONFIG.write()
+            return {'result': 'error', 'message': 'Unable to write configuration; previous settings were retained.'}
 
         # Enable or disable system startup
         if startup_changed:
@@ -3338,13 +3398,13 @@ class WebInterface(object):
                 macos.set_startup()
 
         # Get new server URLs for SSL communications and get new server friendly name
-        if server_changed:
+        if server_changed and plexpy.CONFIG.MEDIA_SERVER_TYPE == 'plex':
             plextv.get_server_resources()
             if plexpy.WS_CONNECTED:
                 web_socket.reconnect()
 
         # If first run, start websocket
-        if first_run:
+        if first_run and plexpy.CONFIG.MEDIA_SERVER_TYPE == 'plex':
             webstart.restart()
             activity_pinger.connect_server(log=True, startup=True)
 
@@ -3357,11 +3417,11 @@ class WebInterface(object):
             create_https_certificates(plexpy.CONFIG.HTTPS_CERT, plexpy.CONFIG.HTTPS_KEY)
 
         # Refresh users table if our server IP changes.
-        if refresh_libraries:
+        if refresh_libraries and plexpy.CONFIG.MEDIA_SERVER_TYPE == 'plex':
             threading.Thread(target=libraries.refresh_libraries).start()
 
         # Refresh users table if our server IP changes.
-        if refresh_users:
+        if refresh_users and plexpy.CONFIG.MEDIA_SERVER_TYPE == 'plex':
             threading.Thread(target=users.refresh_users).start()
 
         return {'result': 'success', 'message': 'Settings saved.'}

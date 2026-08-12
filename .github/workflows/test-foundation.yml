@@ -13,7 +13,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  test:
+  unit:
+    name: unit (${{ matrix.python-version }})
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -33,4 +34,41 @@ jobs:
       - name: Verify Plex coupling inventory
         run: python scripts/audit_plex_coupling.py --check > /dev/null
       - name: Run port suite without network
-        run: python -m pytest tests
+        run: python -m pytest -m "not integration" tests
+
+  jellyfin-integration:
+    name: integration (py${{ matrix.python-version }}, jf${{ matrix.jellyfin-version }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - python-version: '3.10'
+            jellyfin-version: '10.10.7'
+            jellyfin-image: jellyfin/jellyfin:10.10.7@sha256:7ae36aab93ef9b6aaff02b37f8bb23df84bb2d7a3f6054ec8fc466072a648ce2
+          - python-version: '3.10'
+            jellyfin-version: '10.11.11'
+            jellyfin-image: jellyfin/jellyfin:10.11.11@sha256:aefb67e6a7ff1debdd154a78a7bbb780fd0c873d8639210a7f6a2016ad2b35db
+          - python-version: '3.13'
+            jellyfin-version: '10.10.7'
+            jellyfin-image: jellyfin/jellyfin:10.10.7@sha256:7ae36aab93ef9b6aaff02b37f8bb23df84bb2d7a3f6054ec8fc466072a648ce2
+          - python-version: '3.13'
+            jellyfin-version: '10.11.11'
+            jellyfin-image: jellyfin/jellyfin:10.11.11@sha256:aefb67e6a7ff1debdd154a78a7bbb780fd0c873d8639210a7f6a2016ad2b35db
+    env:
+      JELLYFIN_TEST_IMAGE: ${{ matrix.jellyfin-image }}
+      JELLYFIN_TEST_VERSION: ${{ matrix.jellyfin-version }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+          cache-dependency-path: requirements*.txt
+      - name: Install test dependencies
+        run: python -m pip install -r requirements-dev.txt
+      - name: Pull pinned Jellyfin image
+        run: docker pull "$JELLYFIN_TEST_IMAGE"
+      - name: Run live Jellyfin client contract
+        run: python -m pytest -q -m integration tests/integration

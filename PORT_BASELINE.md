@@ -19,8 +19,8 @@ GitHub Actions runs the complete port suite directly on pushes to both `jellyfin
 
 ## Target compatibility
 
-- Primary Jellyfin target: 10.11.x
-- Secondary Jellyfin target: 10.10.7
+- Primary Jellyfin target: 10.11.x; transport tested against 10.11.11
+- Secondary Jellyfin target: 10.10.7; transport tested against 10.10.7
 - Future major-version target: Jellyfin 12 through a separate backend compatibility implementation
 - Supported Python test floor/current packaging target: Python 3.10 and Python 3.13
 

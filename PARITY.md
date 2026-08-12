@@ -57,10 +57,16 @@ Statuses are evidence-based. `UNVERIFIED` means implementation or automated Jell
 
 ## Foundation evidence
 
-The Phase 0–1 gate freezes upstream normalized contracts, report outputs, and the full `PmsConnect` surface. Passing these tests proves only that the abstraction preserves the Plex baseline; it does not promote Jellyfin features to `FULL`.
+Phase 1 is complete. The foundation gate freezes upstream normalized contracts, report outputs, and the full `PmsConnect` surface; automated signature, facade, factory, capability, error, import, and contract tests prove the abstraction preserves the Plex baseline.
 
 ## Phase 2 identity evidence
 
-The database identity gate is covered by automated migration, mapper, persistence, import, and reporting tests. It establishes backend/server/entity-scoped string-to-integer mappings, globally unique JavaScript-safe surrogate IDs, and active/history provenance without changing the legacy Plex report or API surface.
+Phase 2 is complete. The database identity gate is covered by automated migration, mapper, persistence, import, and reporting tests. It establishes backend/server/entity-scoped string-to-integer mappings, globally unique JavaScript-safe surrogate IDs, and active/history provenance without changing the legacy Plex report or API surface.
 
 Phase 2 does not promote any Jellyfin-facing feature to `FULL`: it contains no Jellyfin transport or live normalization. Current activity, history, users, libraries, devices, collections, and playlists remain `UNVERIFIED` until their later phase-specific integration tests pass.
+
+## Phase 3 transport evidence
+
+The standalone JSON-first client is verified against pinned Jellyfin 10.10.7 and 10.11.11 servers on Python 3.10 and 3.13. The live contract covers official MediaBrowser token authentication, system identity/version selection, sessions, item query/detail, users, virtual folders, image bytes, authentication failure, and missing resources. Offline tests cover URL and header validation, pooling, timeouts, safe retries, response decoding, error mapping, tracing, and secret redaction.
+
+Phase 3 intentionally leaves `get_media_backend("jellyfin")` disabled. No feature is promoted to `FULL` until later phases normalize these raw DTOs into Tautulli contracts and connect them to runtime configuration.

@@ -59,6 +59,18 @@ def _write_media(media_dir):
     (album / 'folder.png').write_bytes(ARTWORK)
 
 
+def _wait_for_library_scan(base_url, admin_header):
+    deadline = time.monotonic() + 120
+    while time.monotonic() < deadline:
+        tasks = _request(
+            'GET', base_url + '/ScheduledTasks', expected=(200,), headers=admin_header).json()
+        scan_tasks = [task for task in tasks if task.get('Name') == 'Scan Media Library']
+        if scan_tasks and all(task.get('State') == 'Idle' for task in scan_tasks):
+            return
+        time.sleep(1)
+    raise RuntimeError('Jellyfin library scan did not become idle within 120 seconds')
+
+
 def _wait_for_server(base_url):
     deadline = time.monotonic() + 120
     while time.monotonic() < deadline:
@@ -128,6 +140,7 @@ def _provision(base_url):
         time.sleep(2)
     if not item:
         raise RuntimeError('Jellyfin did not scan the fixture item within 120 seconds')
+    _wait_for_library_scan(base_url, admin_header)
     _request(
         'POST', '{}/Items/{}/Images/Primary'.format(base_url, item['Id']),
         headers=dict(admin_header, **{'Content-Type': 'image/png'}),

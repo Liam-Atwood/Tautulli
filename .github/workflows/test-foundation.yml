@@ -27,4 +27,4 @@ jobs:
       - name: Verify Plex coupling inventory
         run: python scripts/audit_plex_coupling.py --check > /dev/null
       - name: Run foundation suite without network
-        run: python -m pytest
+        run: python -m pytest tests

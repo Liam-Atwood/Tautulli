@@ -1,10 +1,16 @@
-name: Foundation Tests
+name: Jellyfin Port Tests
 
 on:
   push:
-    branches: [jellyfin-port]
-  pull_request:
+    branches: [main, jellyfin-port]
   workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: jellyfin-port-tests-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   test:
@@ -26,5 +32,5 @@ jobs:
         run: python -m compileall -q PlexPy.py Tautulli.py plexpy scripts tests
       - name: Verify Plex coupling inventory
         run: python scripts/audit_plex_coupling.py --check > /dev/null
-      - name: Run foundation suite without network
+      - name: Run port suite without network
         run: python -m pytest tests

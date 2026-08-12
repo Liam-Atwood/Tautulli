@@ -5,10 +5,17 @@
 - Upstream project: `https://github.com/Tautulli/Tautulli.git`
 - Upstream tag: `v2.17.2`
 - Upstream commit: `c7153deb6e3017b8dda46c8448fe548a61c5a47a`
-- Port branch: `jellyfin-port`
+- Fork integration branch: `main`
+- Active development branch: `jellyfin-port`
 - Baseline recorded: 2026-08-12
 
 The upstream Git history is retained. The first foundation build deliberately preserves Plex behavior while inserting a backend boundary; Jellyfin network support begins in a later phase.
+
+## Repository workflow
+
+`Liam-Atwood/Tautulli` is the independent project repository. Completed builds are developed and tested on `jellyfin-port`, then fast-forwarded into the fork's `main` branch. The `upstream` remote is retained only for source attribution and optional future reference; changes are not proposed or merged into `Tautulli/Tautulli`.
+
+GitHub Actions runs the complete port suite directly on pushes to both `jellyfin-port` and `main`. Pull requests are not required for the fork's integration workflow.
 
 ## Target compatibility
 

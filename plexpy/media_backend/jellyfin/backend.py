@@ -12,6 +12,7 @@ from plexpy.media_backend.errors import (
 from plexpy.media_backend.idmap import ExternalIdMapper
 from plexpy.media_backend.jellyfin.client import JellyfinClient, JellyfinImage
 from plexpy.media_backend.jellyfin.metadata import JellyfinMetadataAdapter, parse_image_reference
+from plexpy.media_backend.jellyfin.activity import JellyfinActivityNormalizer
 
 
 JELLYFIN_CAPABILITIES = BackendCapabilities()
@@ -80,7 +81,10 @@ class JellyfinBackend(MediaBackend):
             '{} is not available for Jellyfin in this build'.format(operation))
 
     def get_current_activity(self, skip_cache=False):
-        self._unsupported('Current activity')
+        if self._activity is None:
+            self._activity = JellyfinActivityNormalizer(
+                self.client, self.mapper, self.metadata, getattr(plexpy.CONFIG, 'LOCAL_NETWORKS', None))
+        return self._activity.get_current_activity(skip_cache=skip_cache)
     def get_metadata_details(self, local_item_id, **kwargs):
         for legacy in ('sync_id', 'plex_guid', 'epg_key'):
             if kwargs.get(legacy):

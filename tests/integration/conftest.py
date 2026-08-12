@@ -27,6 +27,7 @@ ARTWORK = base64.b64decode(
 class LiveJellyfinServer:
     base_url: str
     token: str = field(repr=False)
+    user_token: str = field(repr=False)
     item_id: str
     user_id: str
     expected_version: str | None
@@ -155,9 +156,20 @@ def _provision(base_url):
         time.sleep(1)
     else:
         raise RuntimeError('Jellyfin did not make the fixture artwork available within 30 seconds')
+    media_source = item.get('MediaSources', [{}])[0]
+    play_session_id = uuid.uuid4().hex
+    playback = {
+        'CanSeek': True, 'ItemId': item['Id'], 'MediaSourceId': media_source.get('Id'),
+        'AudioStreamIndex': 0, 'SubtitleStreamIndex': None, 'IsPaused': False,
+        'IsMuted': False, 'PositionTicks': 10000000, 'PlaybackRate': 1,
+        'PlayMethod': 'DirectPlay', 'PlaySessionId': play_session_id,
+        'RepeatMode': 'RepeatNone',
+    }
+    _request('POST', base_url + '/Sessions/Playing', headers=admin_header, json=playback)
     return LiveJellyfinServer(
         base_url=base_url,
         token=key['AccessToken'],
+        user_token=auth['AccessToken'],
         item_id=item['Id'],
         user_id=auth['User']['Id'],
         expected_version=os.environ.get('JELLYFIN_TEST_VERSION'),

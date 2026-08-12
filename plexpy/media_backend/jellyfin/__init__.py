@@ -11,9 +11,13 @@ from plexpy.media_backend.jellyfin.backend import JellyfinBackend
 from plexpy.media_backend.jellyfin.metadata import (
     JellyfinMetadataAdapter, make_image_reference, map_item_type, parse_image_reference,
 )
+from plexpy.media_backend.jellyfin.activity import (
+    DEFAULT_LOCAL_NETWORKS, JellyfinActivityNormalizer, classify_endpoint, stable_session_key,
+)
 
 __all__ = (
     'JellyfinClient', 'JellyfinImage', 'JellyfinApi10_10', 'JellyfinApi10_11',
     'build_authorization_header', 'select_api_profile', 'JellyfinBackend', 'JellyfinMetadataAdapter',
     'make_image_reference', 'parse_image_reference', 'map_item_type',
+    'DEFAULT_LOCAL_NETWORKS', 'JellyfinActivityNormalizer', 'classify_endpoint', 'stable_session_key',
 )

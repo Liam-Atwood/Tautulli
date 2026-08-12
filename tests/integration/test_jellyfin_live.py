@@ -1,7 +1,25 @@
 import pytest
 
 from plexpy.media_backend.errors import BackendAuthError, BackendNotFoundError, BackendServerError
-from plexpy.media_backend.jellyfin import JellyfinClient, JellyfinImage
+from plexpy.media_backend.jellyfin import (
+    JellyfinActivityNormalizer, JellyfinClient, JellyfinImage, JellyfinMetadataAdapter,
+)
+
+
+class MemoryMapper:
+    def __init__(self):
+        self.values, self.reverse, self.next = {}, {}, 1000000000000
+
+    def get_or_create(self, entity, external):
+        key = entity, str(external)
+        if key not in self.values:
+            self.values[key] = self.next
+            self.reverse[(entity, self.next)] = str(external)
+            self.next += 1
+        return self.values[key]
+
+    def to_external(self, entity, local):
+        return self.reverse.get((entity, int(local)))
 
 
 pytestmark = [pytest.mark.integration, pytest.mark.allow_hosts(['127.0.0.1'])]
@@ -43,6 +61,21 @@ def test_supported_jellyfin_server_contract(jellyfin_server):
         assert missing_item.value.status_code == 400
         with pytest.raises(BackendNotFoundError):
             client.get_image(server.item_id, image_type='Backdrop', image_index=99)
+
+        mapper = MemoryMapper()
+        adapter = JellyfinMetadataAdapter(client, mapper)
+        metadata = adapter.get_metadata(server.item_id, user_id=server.user_id)
+        assert metadata['media_type'] == 'track'
+        assert metadata['rating_key'] >= 1000000000000
+        assert metadata['media_info'] and metadata['media_info'][0]['parts'][0]['streams']
+
+        activity = JellyfinActivityNormalizer(client, mapper, adapter).get_current_activity(
+            skip_cache=True)
+        playing = [session for session in activity['sessions']
+                   if session['external_item_id'] == server.item_id]
+        assert playing and playing[0]['state'] == 'playing'
+        assert playing[0]['transcode_decision'] == 'direct play'
+        assert activity['stream_count_direct_play'] >= 1
 
     with JellyfinClient(
             server.base_url, 'definitely-invalid-token',

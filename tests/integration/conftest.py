@@ -1,4 +1,5 @@
 import base64
+from dataclasses import dataclass, field
 import os
 import shutil
 import socket
@@ -20,6 +21,15 @@ DEFAULT_IMAGE = (
 ARTWORK = base64.b64decode(
     'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII='
 )
+
+
+@dataclass(frozen=True)
+class LiveJellyfinServer:
+    base_url: str
+    token: str = field(repr=False)
+    item_id: str
+    user_id: str
+    expected_version: str | None
 
 
 def _free_port():
@@ -123,10 +133,22 @@ def _provision(base_url):
         headers=dict(admin_header, **{'Content-Type': 'image/png'}),
         data=base64.b64encode(ARTWORK),
     )
-    return {
-        'base_url': base_url, 'token': key['AccessToken'], 'item_id': item['Id'],
-        'user_id': auth['User']['Id'], 'expected_version': os.environ.get('JELLYFIN_TEST_VERSION'),
-    }
+    image_url = '{}/Items/{}/Images/Primary/0'.format(base_url, item['Id'])
+    deadline = time.monotonic() + 30
+    while time.monotonic() < deadline:
+        response = requests.get(image_url, headers=api_header, timeout=15)
+        if response.status_code == 200 and response.content:
+            break
+        time.sleep(1)
+    else:
+        raise RuntimeError('Jellyfin did not make the fixture artwork available within 30 seconds')
+    return LiveJellyfinServer(
+        base_url=base_url,
+        token=key['AccessToken'],
+        item_id=item['Id'],
+        user_id=auth['User']['Id'],
+        expected_version=os.environ.get('JELLYFIN_TEST_VERSION'),
+    )
 
 
 @pytest.fixture(scope='session')

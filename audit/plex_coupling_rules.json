@@ -3,6 +3,7 @@
   "search_pattern": "plex|pms|rating_?key|machineIdentifier|librarySection|X-Plex|32400|/:/",
   "included_extensions": [".bat", ".css", ".html", ".js", ".json", ".md", ".py", ".sh", ".spec", ".txt", ".xml", ".yaml", ".yml"],
   "excluded_directories": [".git", "build", "cache", "dist", "logs"],
+  "excluded_files": ["PLEX_COUPLING_INVENTORY.md"],
   "rules": [
     {"category": "plex_cloud_dependency", "pattern": "(?:app\\.)?plex\\.tv|metadata\\.provider\\.plex\\.tv|downloads\\.plex\\.tv"},
     {"category": "plex_transport", "pattern": "X-Plex|32400|/:/"},

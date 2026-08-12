@@ -23,3 +23,9 @@ def test_rules_are_machine_readable_and_inventory_is_present():
     config = AUDIT.load_rules()
     assert config['schema_version'] == 1
     assert (ROOT / 'PLEX_COUPLING_INVENTORY.md').is_file()
+
+
+def test_generated_inventory_does_not_audit_itself():
+    assert not any(
+        match['path'] == 'PLEX_COUPLING_INVENTORY.md' for match in AUDIT.audit()
+    )

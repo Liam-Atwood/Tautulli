@@ -58,3 +58,9 @@ Statuses are evidence-based. `UNVERIFIED` means implementation or automated Jell
 ## Foundation evidence
 
 The Phase 0–1 gate freezes upstream normalized contracts, report outputs, and the full `PmsConnect` surface. Passing these tests proves only that the abstraction preserves the Plex baseline; it does not promote Jellyfin features to `FULL`.
+
+## Phase 2 identity evidence
+
+The database identity gate is covered by automated migration, mapper, persistence, import, and reporting tests. It establishes backend/server/entity-scoped string-to-integer mappings, globally unique JavaScript-safe surrogate IDs, and active/history provenance without changing the legacy Plex report or API surface.
+
+Phase 2 does not promote any Jellyfin-facing feature to `FULL`: it contains no Jellyfin transport or live normalization. Current activity, history, users, libraries, devices, collections, and playlists remain `UNVERIFIED` until their later phase-specific integration tests pass.

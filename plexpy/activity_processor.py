@@ -33,6 +33,11 @@ class ActivityProcessor(object):
 
             values = {'session_key': session.get('session_key', ''),
                       'session_id': session.get('session_id', ''),
+                      'media_backend': session.get('media_backend') or 'plex',
+                      'external_item_id': session.get('external_item_id') or None,
+                      'external_user_id': session.get('external_user_id') or None,
+                      'external_library_id': session.get('external_library_id') or None,
+                      'external_session_id': session.get('external_session_id') or None,
                       'transcode_key': session.get('transcode_key', ''),
                       'section_id': session.get('section_id', ''),
                       'rating_key': session.get('rating_key', ''),
@@ -291,6 +296,11 @@ class ActivityProcessor(object):
                 keys = {'id': None}
                 values = {'started': session['started'],
                           'stopped': stopped,
+                          'media_backend': session.get('media_backend') or 'plex',
+                          'external_item_id': session.get('external_item_id') or None,
+                          'external_user_id': session.get('external_user_id') or None,
+                          'external_library_id': session.get('external_library_id') or None,
+                          'external_session_id': session.get('external_session_id') or None,
                           'rating_key': session['rating_key'],
                           'parent_rating_key': session['parent_rating_key'],
                           'grandparent_rating_key': session['grandparent_rating_key'],

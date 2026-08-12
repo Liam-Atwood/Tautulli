@@ -27,12 +27,172 @@ from plexpy import logger
 FILENAME = "tautulli.db"
 db_lock = threading.Lock()
 
+MEDIA_BACKEND_SCHEMA_VERSION = 1
+MEDIA_BACKEND_SCHEMA_KEY = 'media_backend_schema_version'
+EXTERNAL_ID_COUNTER_KEY = 'external_id_next_local_id'
+EXTERNAL_ID_FLOOR = 1_000_000_000_000
+MAX_SAFE_INTEGER = 9_007_199_254_740_991
+
 IS_IMPORTING = False
 
 
 def set_is_importing(value):
     global IS_IMPORTING
     IS_IMPORTING = value
+
+
+def _table_exists(connection, table_name, schema='main'):
+    row = connection.execute(
+        "SELECT 1 FROM {}.sqlite_master WHERE type = 'table' AND name = ?".format(schema),
+        [table_name]
+    ).fetchone()
+    return bool(row)
+
+
+def _table_columns(connection, table_name, schema='main'):
+    if not _table_exists(connection, table_name, schema=schema):
+        return set()
+    rows = connection.execute(
+        "PRAGMA {}.table_info({})".format(schema, table_name)
+    ).fetchall()
+    return {row['name'] if isinstance(row, dict) else row[1] for row in rows}
+
+
+def _max_existing_media_id(connection):
+    identity_columns = {
+        'sessions': ('rating_key', 'parent_rating_key', 'grandparent_rating_key', 'user_id', 'section_id'),
+        'session_history': ('rating_key', 'parent_rating_key', 'grandparent_rating_key', 'user_id', 'section_id'),
+        'session_history_metadata': ('rating_key', 'parent_rating_key', 'grandparent_rating_key'),
+        'session_history_media_info': ('rating_key',),
+        'users': ('user_id',),
+        'library_sections': ('section_id',),
+        'recently_added': ('rating_key', 'parent_rating_key', 'grandparent_rating_key', 'section_id'),
+        'exports': ('rating_key', 'user_id', 'section_id'),
+        'external_id_map': ('local_id',),
+    }
+    maximum = 0
+    for table_name, candidates in identity_columns.items():
+        columns = _table_columns(connection, table_name)
+        for column in candidates:
+            if column not in columns:
+                continue
+            row = connection.execute(
+                'SELECT MAX(CAST({} AS INTEGER)) AS maximum_id FROM {} '
+                'WHERE CAST({} AS INTEGER) > 0'.format(
+                    column, table_name, column)
+            ).fetchone()
+            value = row.get('maximum_id') if isinstance(row, dict) else row[0]
+            if value is not None:
+                maximum = max(maximum, int(value))
+    return maximum
+
+
+def reseed_external_id_counter(connection=None, database_file=None):
+    """Move the surrogate counter beyond every existing numeric identity."""
+    owns_connection = connection is None
+    connection = connection or sqlite3.connect(db_filename(database_file), timeout=20)
+    try:
+        if not _table_exists(connection, 'version_info'):
+            return EXTERNAL_ID_FLOOR
+        next_id = max(EXTERNAL_ID_FLOOR, _max_existing_media_id(connection) + 1)
+        if next_id > MAX_SAFE_INTEGER:
+            raise ValueError('External ID counter exceeds JavaScript safe integer range')
+        connection.execute(
+            "INSERT OR REPLACE INTO version_info (key, value) VALUES (?, ?)",
+            [EXTERNAL_ID_COUNTER_KEY, str(next_id)]
+        )
+        if owns_connection:
+            connection.commit()
+        return next_id
+    finally:
+        if owns_connection:
+            connection.close()
+
+
+def migrate_media_backend_schema(database_file=None, backup_required=True, backup_callback=None,
+                                 before_commit=None):
+    """Apply the Phase 2 schema atomically and idempotently."""
+    database_file = db_filename(database_file)
+    connection = sqlite3.connect(database_file, timeout=20)
+    try:
+        row = None
+        if _table_exists(connection, 'version_info'):
+            row = connection.execute(
+                "SELECT value FROM version_info WHERE key = ?", [MEDIA_BACKEND_SCHEMA_KEY]
+            ).fetchone()
+        current_version = int(row[0]) if row and str(row[0]).isdigit() else 0
+    finally:
+        connection.close()
+
+    if current_version >= MEDIA_BACKEND_SCHEMA_VERSION:
+        return False
+
+    if backup_required:
+        if backup_callback:
+            backup_succeeded = backup_callback()
+        else:
+            backup_succeeded = make_backup(database_file=database_file)
+        if not backup_succeeded:
+            raise RuntimeError('Database backup failed; media backend schema migration aborted')
+
+    with db_lock:
+        connection = sqlite3.connect(database_file, timeout=20, isolation_level=None)
+        try:
+            connection.execute('BEGIN IMMEDIATE')
+            connection.execute("CREATE TABLE IF NOT EXISTS version_info (key TEXT UNIQUE, value TEXT)")
+            row = connection.execute(
+                "SELECT value FROM version_info WHERE key = ?", [MEDIA_BACKEND_SCHEMA_KEY]
+            ).fetchone()
+            current_version = int(row[0]) if row and str(row[0]).isdigit() else 0
+            if current_version >= MEDIA_BACKEND_SCHEMA_VERSION:
+                connection.rollback()
+                return False
+
+            connection.execute(
+                "CREATE TABLE IF NOT EXISTS external_id_map ("
+                "id INTEGER PRIMARY KEY AUTOINCREMENT, backend TEXT NOT NULL, server_id TEXT NOT NULL, "
+                "entity_type TEXT NOT NULL, external_id TEXT NOT NULL, local_id INTEGER NOT NULL, "
+                "created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL, "
+                "UNIQUE (backend, server_id, entity_type, external_id), UNIQUE (local_id))"
+            )
+            connection.execute(
+                "CREATE INDEX IF NOT EXISTS idx_external_id_map_external "
+                "ON external_id_map (backend, server_id, entity_type, external_id)"
+            )
+            connection.execute(
+                "CREATE INDEX IF NOT EXISTS idx_external_id_map_local "
+                "ON external_id_map (backend, server_id, entity_type, local_id)"
+            )
+
+            provenance_columns = (
+                ("media_backend", "TEXT NOT NULL DEFAULT 'plex'"),
+                ('external_item_id', 'TEXT'),
+                ('external_user_id', 'TEXT'),
+                ('external_library_id', 'TEXT'),
+                ('external_session_id', 'TEXT'),
+            )
+            for table_name in ('sessions', 'session_history'):
+                columns = _table_columns(connection, table_name)
+                for column, definition in provenance_columns:
+                    if column not in columns:
+                        connection.execute(
+                            'ALTER TABLE {} ADD COLUMN {} {}'.format(table_name, column, definition)
+                        )
+
+            reseed_external_id_counter(connection=connection)
+            connection.execute(
+                "INSERT OR REPLACE INTO version_info (key, value) VALUES (?, ?)",
+                [MEDIA_BACKEND_SCHEMA_KEY, str(MEDIA_BACKEND_SCHEMA_VERSION)]
+            )
+            if before_commit:
+                before_commit(connection)
+            connection.commit()
+            return True
+        except Exception:
+            connection.rollback()
+            raise
+        finally:
+            connection.close()
 
 
 def validate_database(database=None):
@@ -73,6 +233,22 @@ def import_tautulli_db(database=None, method=None, backup=False):
         logger.error("Tautulli Database :: Failed to import Tautulli database: invalid import method '%s'", method)
         return False
 
+    if method == 'merge':
+        import_connection = sqlite3.connect(database, timeout=20)
+        try:
+            if _table_exists(import_connection, 'external_id_map'):
+                mapped_rows = import_connection.execute(
+                    'SELECT 1 FROM external_id_map LIMIT 1'
+                ).fetchone()
+                if mapped_rows:
+                    logger.error(
+                        "Tautulli Database :: Cannot merge a database containing mapped media-server identities. "
+                        "Use overwrite restore or a future identity reconciliation tool."
+                    )
+                    return False
+        finally:
+            import_connection.close()
+
     if backup:
         # Make a backup of the current database first
         logger.info("Tautulli Database :: Creating a database backup before importing.")
@@ -86,6 +262,10 @@ def import_tautulli_db(database=None, method=None, backup=False):
     db = MonitorDatabase()
     db.connection.execute("BEGIN IMMEDIATE")
     db.connection.execute("ATTACH ? AS import_db", [database])
+
+    if method == 'overwrite':
+        db.action("DELETE FROM external_id_map")
+        db.action("DELETE FROM sqlite_sequence WHERE name = 'external_id_map'")
 
     try:
         version_info = db.select_single("SELECT * FROM import_db.version_info WHERE key = 'version'")
@@ -198,6 +378,9 @@ def import_tautulli_db(database=None, method=None, backup=False):
         for table_name in session_history_tables:
             db.action("DROP TABLE {table}_copy".format(table=table_name))
 
+    reseed_external_id_counter(connection=db.connection)
+    db.connection.commit()
+
     vacuum()
 
     logger.info("Tautulli Database :: Tautulli database import complete.")
@@ -207,8 +390,8 @@ def import_tautulli_db(database=None, method=None, backup=False):
     os.remove(database)
 
 
-def integrity_check():
-    monitor_db = MonitorDatabase()
+def integrity_check(database_file=None):
+    monitor_db = MonitorDatabase(filename=database_file)
     result = monitor_db.select_single("PRAGMA integrity_check")
     return result
 
@@ -331,11 +514,12 @@ def db_filename(filename=None):
     return filename
 
 
-def make_backup(cleanup=False, scheduler=False):
+def make_backup(cleanup=False, scheduler=False, database_file=None):
     """ Makes a backup of db, removes all but the last 5 backups """
 
     # Check the integrity of the database first
-    integrity = (integrity_check()['integrity_check'] == 'ok')
+    database_file = db_filename(database_file)
+    integrity = (integrity_check(database_file=database_file)['integrity_check'] == 'ok')
 
     corrupt = ''
     if not integrity:
@@ -353,10 +537,10 @@ def make_backup(cleanup=False, scheduler=False):
     if not os.path.exists(backup_folder):
         os.makedirs(backup_folder)
 
-    db = MonitorDatabase()
+    db = MonitorDatabase(filename=database_file)
     db.connection.execute("BEGIN IMMEDIATE")
     with zipfile.ZipFile(backup_file_fp, 'w', zipfile.ZIP_DEFLATED) as zipf:
-        zipf.write(db_filename(), arcname=FILENAME)
+        zipf.write(database_file, arcname=FILENAME)
     db.connection.rollback()
 
     # Only cleanup if the database integrity is okay
@@ -373,7 +557,7 @@ def make_backup(cleanup=False, scheduler=False):
                         logger.error("Tautulli Database :: Failed to delete %s from the backup folder: %s" % (file_, e))
 
     if backup_file in os.listdir(backup_folder):
-        logger.debug("Tautulli Database :: Successfully backed up %s to %s" % (db_filename(), backup_file))
+        logger.debug("Tautulli Database :: Successfully backed up %s to %s" % (database_file, backup_file))
         return True
     else:
         logger.error("Tautulli Database :: Failed to backup %s to %s" % (db_filename(), backup_file))

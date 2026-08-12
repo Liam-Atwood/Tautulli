@@ -601,6 +601,7 @@ def sig_handler(signum=None, frame=None):
 
 
 def dbcheck():
+    database_preexisting = os.path.isfile(DB_FILE) and os.path.getsize(DB_FILE) > 0
     conn_db = sqlite3.connect(DB_FILE)
     c_db = conn_db.cursor()
 
@@ -2809,6 +2810,13 @@ def dbcheck():
 
     conn_db.commit()
     c_db.close()
+
+    # Phase 2 media backend identity schema. Keep this after all legacy table
+    # upgrades so it can run as a separate, backed-up atomic transaction.
+    database.migrate_media_backend_schema(
+        database_file=DB_FILE,
+        backup_required=database_preexisting,
+    )
 
     # Migrate poster_urls to imgur_lookup table
     try:

@@ -24,12 +24,15 @@ def load_rules(path=DEFAULT_RULES):
 def iter_source_files(root, config):
     extensions = set(config['included_extensions'])
     excluded = set(config['excluded_directories'])
+    excluded_files = set(config.get('excluded_files', ()))
     for path in sorted(root.rglob('*')):
         relative = path.relative_to(root)
-        if not path.is_file() or any(part in excluded for part in relative.parts):
+        relative_name = relative.as_posix()
+        if (not path.is_file() or relative_name in excluded_files or
+                any(part in excluded for part in relative.parts)):
             continue
         if path.suffix.lower() in extensions:
-            yield path, relative.as_posix()
+            yield path, relative_name
 
 
 def classify(relative_path, line, config):

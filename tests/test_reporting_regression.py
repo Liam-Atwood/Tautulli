@@ -1,4 +1,5 @@
 import json
+import sqlite3
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -32,6 +33,11 @@ def _card(stats, card_id):
 
 def test_existing_reporting_outputs_are_frozen(tmp_path, monkeypatch):
     _configure_database(tmp_path, monkeypatch)
+    connection = sqlite3.connect(plexpy.DB_FILE)
+    assert connection.execute(
+        "SELECT COUNT(*) FROM session_history WHERE media_backend != 'plex'"
+    ).fetchone()[0] == 0
+    connection.close()
     expected = json.loads((FIXTURES / 'expected.json').read_text(encoding='utf-8'))
     cards = [
         'top_movies', 'popular_movies', 'top_tv', 'popular_tv', 'top_music', 'popular_music',

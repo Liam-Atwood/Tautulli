@@ -266,11 +266,13 @@ class ActivityProcessor(object):
             # Reload json from raw stream info
             if session.get('raw_stream_info'):
                 raw_stream_info = json.loads(session['raw_stream_info'])
-                # Don't overwrite id, session_key, stopped, view_offset
-                raw_stream_info.pop('id', None)
-                raw_stream_info.pop('session_key', None)
-                raw_stream_info.pop('stopped', None)
-                raw_stream_info.pop('view_offset', None)
+                # Preserve reconciler-owned lifecycle state. The raw payload is
+                # useful for metadata fields, but it reflects the initial poll
+                # and must not reset pause/watched accounting at history time.
+                for lifecycle_key in ('id', 'session_key', 'stopped', 'view_offset',
+                                      'paused_counter', 'last_paused', 'watched',
+                                      'history_identity'):
+                    raw_stream_info.pop(lifecycle_key, None)
                 session.update(raw_stream_info)
 
             session = defaultdict(str, session)

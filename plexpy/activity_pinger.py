@@ -158,8 +158,10 @@ def check_active_sessions(ws_request=False):
                                 if (session['media_type'] == 'movie' and progress_percent >= plexpy.CONFIG.MOVIE_WATCHED_PERCENT or
                                     session['media_type'] == 'episode' and progress_percent >= plexpy.CONFIG.TV_WATCHED_PERCENT or
                                     session['media_type'] == 'track' and progress_percent >= plexpy.CONFIG.MUSIC_WATCHED_PERCENT) \
+                                    and not stream.get('watched') \
                                     and not any(d['notify_action'] == 'on_watched' for d in notify_states):
                                     plexpy.NOTIFY_QUEUE.put({'stream_data': stream.copy(), 'notify_action': 'on_watched'})
+                                    monitor_process.set_watched(stream['session_key'])
 
                 else:
                     # The user has stopped playing a stream
@@ -183,8 +185,10 @@ def check_active_sessions(ws_request=False):
                         if (stream['media_type'] == 'movie' and progress_percent >= plexpy.CONFIG.MOVIE_WATCHED_PERCENT or
                             stream['media_type'] == 'episode' and progress_percent >= plexpy.CONFIG.TV_WATCHED_PERCENT or
                             stream['media_type'] == 'track' and progress_percent >= plexpy.CONFIG.MUSIC_WATCHED_PERCENT) \
+                            and not stream.get('watched') \
                             and not any(d['notify_action'] == 'on_watched' for d in notify_states):
                             plexpy.NOTIFY_QUEUE.put({'stream_data': stream.copy(), 'notify_action': 'on_watched'})
+                            monitor_process.set_watched(stream['session_key'])
 
                         plexpy.NOTIFY_QUEUE.put({'stream_data': stream.copy(), 'notify_action': 'on_stop'})
 

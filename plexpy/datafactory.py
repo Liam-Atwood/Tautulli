@@ -366,13 +366,13 @@ class DataFactory(object):
         where_timeframe = ''
         where_timeframe_args = []
         if before:
-            where_timeframe += "AND strftime('%%Y-%%m-%%d', datetime(started, 'unixepoch', 'localtime')) <= '?' "
+            where_timeframe += "AND strftime('%Y-%m-%d', datetime(started, 'unixepoch', 'localtime')) <= ? "
             where_timeframe_args.append(before)
             if not after:
                 timestamp = helpers.YMD_to_timestamp(before) - time_range * 24 * 60 * 60
                 where_timeframe += "AND session_history.stopped >= %s " % timestamp
         if after:
-            where_timeframe += "AND strftime('%%Y-%%m-%%d', datetime(started, 'unixepoch', 'localtime')) >= '?' "
+            where_timeframe += "AND strftime('%Y-%m-%d', datetime(started, 'unixepoch', 'localtime')) >= ? "
             where_timeframe_args.append(after)
             if not before:
                 timestamp = helpers.YMD_to_timestamp(after) + time_range * 24 * 60 * 60

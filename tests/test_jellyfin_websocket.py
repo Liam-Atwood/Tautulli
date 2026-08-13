@@ -64,3 +64,17 @@ def test_socket_failure_does_not_invoke_rest_reconciler():
     ws._stop.wait = lambda delay: ws._stop.set() or True
     ws.run()
     assert calls == []
+
+
+def test_disconnect_reconnect_hints_do_not_duplicate_reconciliation():
+    calls = []
+    ws = JellyfinWebSocketClient(client(), lambda: calls.append('rest'), debounce_seconds=.01)
+    assert ws.process_message({'MessageType': 'PlaybackStart', 'MessageId': 'start'})
+    # A disconnect has no lifecycle meaning. Polling owns session continuity.
+    ws._socket = None
+    assert ws.process_message({'MessageType': 'PlaybackProgress', 'MessageId': 'progress'})
+    assert not ws.process_message({'MessageType': 'PlaybackProgress', 'MessageId': 'progress'})
+    assert ws.process_message({'MessageType': 'PlaybackStopped', 'MessageId': 'stop'})
+    time.sleep(.04)
+    assert calls == ['rest']
+    ws.close()

@@ -1,11 +1,13 @@
 import copy
 import json
 import sqlite3
+import queue
 from pathlib import Path
 from types import SimpleNamespace
 
 import plexpy
-from plexpy import activity_processor, helpers
+from plexpy import activity_pinger, activity_processor, helpers
+from plexpy.media_backend.errors import BackendConnectionError
 
 
 FIXTURES = Path(__file__).parent / 'fixtures' / 'normalized'
@@ -18,7 +20,11 @@ def configure(tmp_path, monkeypatch):
         SYNCHRONOUS_MODE='OFF', JOURNAL_MODE='MEMORY', CACHE_SIZEMB=1,
         BACKUP_DIR=str(tmp_path / 'backups'), BACKUP_DAYS=3,
         MEDIA_SERVER_ID='server-a', LOGGING_IGNORE_INTERVAL=0,
+        PMS_IDENTIFIER='server-a', MEDIA_SERVER_TYPE='jellyfin',
         NOTIFY_CONTINUED_SESSION_THRESHOLD=300,
+        BUFFER_THRESHOLD=0, BUFFER_WAIT=60, MONITORING_INTERVAL=60,
+        MOVIE_WATCHED_PERCENT=85, TV_WATCHED_PERCENT=85,
+        MUSIC_WATCHED_PERCENT=85, SESSION_DB_WRITE_ATTEMPTS=3,
     ))
     plexpy.dbcheck()
 
@@ -116,4 +122,60 @@ def test_failed_history_bundle_rolls_back_all_rows(tmp_path, monkeypatch):
         pass
     connection = sqlite3.connect(plexpy.DB_FILE)
     assert connection.execute('SELECT COUNT(*) FROM session_history').fetchone()[0] == 0
+    connection.close()
+
+
+def test_reconciler_survives_restart_failure_and_records_lifecycle_once(tmp_path, monkeypatch):
+    configure(tmp_path, monkeypatch)
+    clock = iter((100, 100, 110, 140, 160, 180, 200, 220, 240, 260))
+    monkeypatch.setattr(helpers, 'timestamp', lambda: next(clock))
+    monkeypatch.setattr(plexpy, 'NOTIFY_QUEUE', queue.Queue())
+    monkeypatch.setattr('plexpy.notification_handler.get_notify_state', lambda **kwargs: [])
+    monkeypatch.setattr('plexpy.activity_handler.delete_metadata_cache', lambda *args: None)
+
+    playing = jellyfin_session()
+    playing.update({'state': 'playing', 'view_offset': '10000', 'duration': '100000'})
+    paused = dict(playing, state='paused', view_offset='30000')
+    watched = dict(playing, state='playing', view_offset='90000')
+    responses = [
+        {'sessions': [playing]}, {'sessions': [paused]}, BackendConnectionError('transient'),
+        {'sessions': [paused]}, {'sessions': [watched]}, {'sessions': []}, {'sessions': []},
+    ]
+
+    class Facade:
+        def get_current_activity(self, **kwargs):
+            response = responses.pop(0)
+            if isinstance(response, Exception):
+                raise response
+            return response
+
+        def get_metadata_details(self, *args, **kwargs):
+            return metadata()
+
+    monkeypatch.setattr('plexpy.pmsconnect.PmsConnect', lambda *args, **kwargs: Facade())
+    assert activity_pinger.check_active_sessions()
+    assert activity_pinger.check_active_sessions()
+    # Simulate a process restart by discarding all in-memory processor state.
+    assert activity_pinger.check_active_sessions() is False
+    assert activity_processor.ActivityProcessor().get_session_by_key(playing['session_key'])
+    assert activity_pinger.check_active_sessions()
+    assert activity_pinger.check_active_sessions()
+    persisted = activity_processor.ActivityProcessor().get_session_by_key(playing['session_key'])
+    assert persisted['paused_counter'] > 0
+    assert activity_pinger.check_active_sessions()
+    assert activity_pinger.check_active_sessions()
+
+    actions = []
+    while not plexpy.NOTIFY_QUEUE.empty():
+        actions.append(plexpy.NOTIFY_QUEUE.get_nowait()['notify_action'])
+    assert actions.count('on_play') == 1
+    assert actions.count('on_pause') == 1
+    assert actions.count('on_resume') == 1
+    assert actions.count('on_watched') == 1
+    assert actions.count('on_stop') == 1
+    assert 'on_buffer' not in actions
+    connection = sqlite3.connect(plexpy.DB_FILE)
+    assert connection.execute('SELECT COUNT(*) FROM sessions').fetchone()[0] == 0
+    assert connection.execute('SELECT COUNT(*) FROM session_history').fetchone()[0] == 1
+    assert connection.execute('SELECT paused_counter FROM session_history').fetchone()[0] > 0
     connection.close()

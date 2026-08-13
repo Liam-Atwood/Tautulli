@@ -78,3 +78,27 @@ def test_plex_and_jellyfin_histories_produce_identical_reports(tmp_path, monkeyp
 
     assert normalize_ids(jellyfin_stats) == plex_stats
     assert normalize_ids(jellyfin_libraries) == plex_libraries
+
+
+def test_mapped_user_library_date_grouping_and_network_filters(tmp_path, monkeypatch):
+    path = tmp_path / 'tautulli.db'
+    configure(path, monkeypatch)
+    monkeypatch.setattr('plexpy.session.mask_session_info', lambda rows, **kwargs: rows)
+    convert_to_jellyfin(path)
+    factory = datafactory.DataFactory()
+    user_id = EXTERNAL_ID_FLOOR + 1
+    library_id = EXTERNAL_ID_FLOOR + 2
+    filtered = factory.get_home_stats(
+        time_range=30, grouping=True, user_id=user_id, section_id=library_id,
+        after='2024-01-01', before='2024-01-12',
+        stats_cards=['top_tv', 'top_platforms', 'most_concurrent'])
+    tv = next(card for card in filtered if card['stat_id'] == 'top_tv')
+    assert tv['rows'] and all(row['section_id'] == library_id for row in tv['rows'])
+    connection = sqlite3.connect(path)
+    assert connection.execute(
+        "SELECT SUM(bandwidth), COUNT(*) FROM session_history WHERE media_backend='jellyfin' "
+        "AND location='lan'").fetchone() == (16320, 3)
+    assert connection.execute(
+        "SELECT SUM(bandwidth), COUNT(*) FROM session_history WHERE media_backend='jellyfin' "
+        "AND location='wan'").fetchone() == (8000, 2)
+    connection.close()

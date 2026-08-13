@@ -2434,9 +2434,14 @@ class DataFactory(object):
 
         return [d['machine_id'] for d in result]
 
-    def get_recently_added_item(self, rating_key=''):
+    def get_recently_added_item(self, rating_key='', media_backend=None, server_id=None,
+                                external_item_id=None, addition_generation=None):
         monitor_db = database.MonitorDatabase()
 
+        if media_backend == 'jellyfin' and external_item_id:
+            query = ("SELECT * FROM recently_added WHERE media_backend = 'jellyfin' "
+                     "AND server_id = ? AND external_item_id = ? AND addition_generation = ?")
+            return monitor_db.select(query, [server_id, external_item_id, addition_generation])
         if rating_key:
             try:
                 query = "SELECT * FROM recently_added WHERE rating_key = ?"
@@ -2449,13 +2454,19 @@ class DataFactory(object):
 
         return result
 
-    def set_recently_added_item(self, rating_key=''):
+    def set_recently_added_item(self, rating_key='', metadata=None):
         monitor_db = database.MonitorDatabase()
 
-        pms_connect = pmsconnect.PmsConnect()
-        metadata = pms_connect.get_metadata_details(rating_key)
+        if metadata is None:
+            pms_connect = pmsconnect.PmsConnect()
+            metadata = pms_connect.get_metadata_details(rating_key)
 
-        keys = {'rating_key': metadata['rating_key']}
+        jellyfin = metadata.get('media_backend') == 'jellyfin'
+        generation = helpers.cast_to_int(metadata.get('added_at'))
+        keys = ({'media_backend': 'jellyfin', 'server_id': metadata.get('server_id'),
+                 'external_item_id': metadata.get('external_item_id'),
+                 'addition_generation': generation} if jellyfin else
+                {'rating_key': metadata['rating_key']})
 
         values = {'added_at': metadata['added_at'],
                   'section_id': metadata['section_id'],
@@ -2464,11 +2475,13 @@ class DataFactory(object):
                   'media_type': metadata['media_type'],
                   'media_info': json.dumps(metadata['media_info'])
                   }
+        if jellyfin:
+            values.update({'rating_key': metadata['rating_key']})
 
         try:
-            monitor_db.upsert(table_name='recently_added', key_dict=keys, value_dict=values)
+            result = monitor_db.upsert(table_name='recently_added', key_dict=keys, value_dict=values)
         except Exception as e:
             logger.warn("Tautulli DataFactory :: Unable to execute database query for set_recently_added_item: %s." % e)
             return False
 
-        return True
+        return result == 'insert' if jellyfin else True

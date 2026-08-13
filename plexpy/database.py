@@ -27,7 +27,7 @@ from plexpy import logger
 FILENAME = "tautulli.db"
 db_lock = threading.Lock()
 
-MEDIA_BACKEND_SCHEMA_VERSION = 2
+MEDIA_BACKEND_SCHEMA_VERSION = 3
 MEDIA_BACKEND_SCHEMA_KEY = 'media_backend_schema_version'
 EXTERNAL_ID_COUNTER_KEY = 'external_id_next_local_id'
 EXTERNAL_ID_FLOOR = 1_000_000_000_000
@@ -237,6 +237,27 @@ def migrate_media_backend_schema(database_file=None, backup_required=True, backu
                     "CREATE UNIQUE INDEX IF NOT EXISTS idx_session_history_jellyfin_identity "
                     "ON session_history (history_identity) WHERE media_backend = 'jellyfin' "
                     "AND history_identity IS NOT NULL"
+                )
+            if current_version < 3:
+                connection.execute(
+                    "CREATE TABLE IF NOT EXISTS recently_added (id INTEGER PRIMARY KEY AUTOINCREMENT, "
+                    "added_at INTEGER, pms_identifier TEXT, section_id INTEGER, rating_key INTEGER, "
+                    "parent_rating_key INTEGER, grandparent_rating_key INTEGER, media_type TEXT, media_info TEXT)"
+                )
+                recent_columns = (
+                    ('media_backend', "TEXT NOT NULL DEFAULT 'plex'"),
+                    ('server_id', 'TEXT'), ('external_item_id', 'TEXT'),
+                    ('addition_generation', 'INTEGER'),
+                )
+                columns = _table_columns(connection, 'recently_added')
+                for column, definition in recent_columns:
+                    if column not in columns:
+                        connection.execute(
+                            'ALTER TABLE recently_added ADD COLUMN {} {}'.format(column, definition))
+                connection.execute(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS idx_recently_added_jellyfin_generation "
+                    "ON recently_added (server_id, external_item_id, addition_generation) "
+                    "WHERE media_backend = 'jellyfin' AND external_item_id IS NOT NULL"
                 )
             connection.execute(
                 "INSERT OR REPLACE INTO version_info (key, value) VALUES (?, ?)",

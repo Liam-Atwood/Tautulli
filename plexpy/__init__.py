@@ -504,6 +504,10 @@ def initialize_scheduler():
         if jellyfin_backend and CONFIG.FIRST_RUN_COMPLETE:
             schedule_job(libraries.refresh_libraries, 'Refresh libraries list', hours=library_hours)
             schedule_job(users.refresh_users, 'Refresh users list', hours=user_hours)
+            from plexpy.media_backend.jellyfin.recent import scan_recently_added
+            schedule_job(scan_recently_added, 'Scan Jellyfin recently added', minutes=5)
+        else:
+            schedule_job(lambda: None, 'Scan Jellyfin recently added', seconds=0)
 
         # Start scheduler
         if start_jobs and len(SCHED.get_jobs()):
@@ -841,7 +845,8 @@ def dbcheck():
         "CREATE TABLE IF NOT EXISTS recently_added (id INTEGER PRIMARY KEY AUTOINCREMENT, "
         "added_at INTEGER, pms_identifier TEXT, section_id INTEGER, "
         "rating_key INTEGER, parent_rating_key INTEGER, grandparent_rating_key INTEGER, media_type TEXT, "
-        "media_info TEXT)"
+        "media_info TEXT, media_backend TEXT NOT NULL DEFAULT 'plex', server_id TEXT, "
+        "external_item_id TEXT, addition_generation INTEGER)"
     )
 
     # mobile_devices table :: This table keeps record of devices linked with the mobile app

@@ -22,8 +22,8 @@ Statuses are evidence-based. `UNVERIFIED` means implementation or automated Jell
 | Libraries | FULL | Jellyfin virtual folders and item totals | Phase 8 type/count and transactional replacement tests |
 | Concurrent streams | FULL | Existing concurrency rules | Deterministic overlap report fixture |
 | New-device notifications | UNVERIFIED | Stable `DeviceId` | Notification trigger test |
-| Recently added | UNVERIFIED | Jellyfin item queries | Contract and ordering tests |
-| Newsletters | UNVERIFIED | Existing renderer | Grouping and artwork tests |
+| Recently added | FULL | Sorted Jellyfin item queries plus authoritative scans | Pagination, ordering, generation deduplication, migration, and restart-safe scan tests |
+| Newsletters | FULL | Existing renderer over normalized recent metadata | Existing newsletter grouping/rendering plus backend image-proxy contract tests |
 | Metadata pages | FULL | `BaseItemDto` normalization | Media-type contract suite |
 | Source media information | FULL | `MediaSourceInfo` | Source/selected-stream fixtures |
 | Codec reporting | FULL | `MediaStream` | Codec contract fixtures |
@@ -95,3 +95,7 @@ Phase 8 performs libraries-first authoritative synchronization. Jellyfin policie
 Phase 9 compares the complete existing report output for equivalent Plex and Jellyfin histories with different numeric namespaces and provenance. Movie, television, music, users, libraries, platforms, durations, date ranges, grouping, concurrency, bandwidth, and LAN/WAN results are identical after normalizing identifiers. Guest/admin visibility remains enforced by the established mapped user and library filters.
 
 Phase 10 adds `/socket` as a loss-tolerant hint channel. It uses the official MediaBrowser header, `SessionsStart` subscription, bounded message deduplication, 250 ms per-domain debounce, tolerant unknown-message handling, and capped reconnect backoff. Disconnect/reconnect hints remain deduplicated, session hints invoke authoritative REST reconciliation, polling stays scheduled, and websocket failure never changes REST-derived server health or lifecycle identity.
+
+## Phase 11 evidence
+
+Phase 11 supplies sorted, recursively scoped Jellyfin additions through the frozen recently-added wrapper and the shared metadata/image adapters. Schema version 3 adds backend, server, external-item, and creation-generation provenance with a partial uniqueness constraint. A transactional first insert is the notification claim: metadata edits update that claim, while a distinct creation generation can notify again. Five-minute scans are authoritative and restart-safe; library websocket messages only accelerate the same scan. Existing newsletter grouping and rendering consume the normalized results unchanged.

@@ -93,7 +93,39 @@ class JellyfinBackend(MediaBackend):
         return self.metadata.from_local(local_item_id, **allowed)
     def get_item_children(self, local_item_id, **kwargs):
         return self.metadata.get_children(local_item_id, **kwargs)
-    def get_recently_added(self, **kwargs): self._unsupported('Recently added')
+    def get_recently_added(self, **kwargs):
+        return self.get_recently_added_details(**kwargs)
+
+    def get_recently_added_details(self, start='0', count='0', media_type='', section_id='', **kwargs):
+        self._ensure_connected()
+        start, count = max(0, int(start or 0)), max(0, int(count or 0))
+        type_map = {
+            'movie': ('Movie',), 'show': ('Series',), 'artist': ('MusicArtist',),
+            'other_video': ('Video', 'Trailer', 'MusicVideo'),
+        }
+        include_types = type_map.get(media_type) if media_type else tuple(
+            value for values in type_map.values() for value in values)
+        parent_id = None
+        if section_id:
+            parent_id = self.mapper.to_external(ENTITY_LIBRARY, section_id)
+            if parent_id is None:
+                return {'recently_added': []}
+        result = self.client.get_latest_items(
+            start=start, limit=count or 50, parent_id=parent_id,
+            include_item_types=include_types)
+        items = result.get('Items', []) if isinstance(result, dict) else result or []
+        normalized = []
+        for item in items:
+            external_id = str(item.get('Id') or '')
+            if not external_id:
+                continue
+            try:
+                normalized.append(self.metadata.get_metadata(external_id))
+            except BackendFeatureUnsupportedError:
+                continue
+        normalized.sort(key=lambda value: (int(value.get('added_at') or 0),
+                                            str(value.get('external_item_id') or '')), reverse=True)
+        return {'recently_added': normalized[:count or None]}
     def get_libraries(self):
         self._ensure_connected()
         output = []

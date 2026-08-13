@@ -689,9 +689,10 @@ def clear_recently_added_queue(rating_key, title):
     del_keys(rating_key)
 
 
-def on_created(rating_key, **kwargs):
-    pms_connect = pmsconnect.PmsConnect()
-    metadata = pms_connect.get_metadata_details(rating_key)
+def on_created(rating_key, metadata=None, pre_recorded=False, **kwargs):
+    if metadata is None:
+        pms_connect = pmsconnect.PmsConnect()
+        metadata = pms_connect.get_metadata_details(rating_key)
 
     logger.debug("Tautulli TimelineHandler :: Library item '%s' (%s) added to Plex.",
                  metadata['full_title'], str(rating_key))
@@ -706,7 +707,7 @@ def on_created(rating_key, **kwargs):
         #     notify = False
 
         data_factory = datafactory.DataFactory()
-        if 'child_keys' not in kwargs:
+        if 'child_keys' not in kwargs and not pre_recorded:
             if data_factory.get_recently_added_item(rating_key):
                 logger.debug("Tautulli TimelineHandler :: Library item %s added already. Not notifying again."
                              % str(rating_key))
@@ -721,8 +722,9 @@ def on_created(rating_key, **kwargs):
         if 'child_keys' in kwargs:
             all_keys.extend(kwargs['child_keys'])
 
-        for key in all_keys:
-            data_factory.set_recently_added_item(key)
+        if not pre_recorded:
+            for key in all_keys:
+                data_factory.set_recently_added_item(key)
 
         logger.debug("Added %s items to the recently_added database table." % str(len(all_keys)))
 

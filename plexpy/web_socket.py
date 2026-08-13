@@ -131,12 +131,13 @@ def start_jellyfin_thread():
     from plexpy import libraries, users
     from plexpy.media_backend.factory import get_media_backend
     from plexpy.media_backend.jellyfin.websocket import JellyfinWebSocketClient
+    from plexpy.media_backend.jellyfin.recent import scan_recently_added
     backend = get_media_backend('jellyfin')
     backend._ensure_connected()
     jellyfin_socket = JellyfinWebSocketClient(
         backend.client,
         reconcile=lambda: activity_pinger.check_active_sessions(ws_request=True),
-        refresh_libraries=libraries.refresh_libraries,
+        refresh_libraries=lambda: (libraries.refresh_libraries(), scan_recently_added()),
         refresh_users=users.refresh_users,
     )
     return jellyfin_socket.start()

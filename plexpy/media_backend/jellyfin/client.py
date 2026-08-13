@@ -221,6 +221,14 @@ class JellyfinClient:
         params = {key: _comma_list(value) for key, value in params.items() if value is not None}
         return self._request('GET', 'Items', params=params or None)
 
+    def get_latest_items(self, start=0, limit=50, parent_id=None, include_item_types=None,
+                         user_id=None):
+        return self.get_items(
+            startIndex=int(start), limit=int(limit), parentId=parent_id, userId=user_id,
+            recursive=True, sortBy='DateCreated', sortOrder='Descending',
+            includeItemTypes=include_item_types,
+            fields='DateCreated,ParentId,Path,ProviderIds,MediaSources,People,Genres,Tags,Studios')
+
     def get_ancestors(self, item_id, user_id=None):
         params = {'userId': user_id} if user_id is not None else None
         return self._request(

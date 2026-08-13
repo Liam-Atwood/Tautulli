@@ -5,7 +5,7 @@ Statuses are evidence-based. `UNVERIFIED` means implementation or automated Jell
 | Tautulli feature | Initial status | Jellyfin strategy | Required evidence |
 |---|---|---|---|
 | Current activity | FULL | `/Sessions` normalization | Contract, polling, and live playback tests |
-| Play history | UNVERIFIED | Existing `ActivityProcessor` | Complete lifecycle creates one row |
+| Play history | FULL | Phase 7 lifecycle reconciler | `tests/test_jellyfin_lifecycle.py`: prerequisites, elapsed pauses, atomic bundle, rollback, exactly-once identity |
 | Watch duration | UNVERIFIED | Existing history calculations | Reporting regression tests |
 | Pause duration | UNVERIFIED | Paused player state | Pause/resume lifecycle test |
 | Watched threshold | UNVERIFIED | Existing percentage calculation | Threshold boundary tests |

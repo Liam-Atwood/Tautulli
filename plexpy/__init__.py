@@ -446,6 +446,7 @@ def initialize_scheduler():
                      hours=backup_hours, minutes=0, seconds=0, args=(True, True))
 
         plex_backend = CONFIG.MEDIA_SERVER_TYPE == 'plex'
+        jellyfin_backend = CONFIG.MEDIA_SERVER_TYPE == 'jellyfin'
         if plex_backend and WS_CONNECTED and CONFIG.PMS_IP and CONFIG.PMS_TOKEN:
             schedule_job(plextv.get_server_resources, 'Refresh Plex server URLs',
                          hours=12 * (not bool(CONFIG.PMS_URL_MANUAL)), minutes=0, seconds=0)
@@ -492,6 +493,12 @@ def initialize_scheduler():
 
             schedule_job(plextv.notify_token_expired, 'Check Tautulli Plex token',
                          hours=0, minutes=0, seconds=0)
+
+        jellyfin_interval = min(60, max(5, helpers.cast_to_int(
+            getattr(CONFIG, 'JELLYFIN_MONITORING_INTERVAL', 10))))
+        schedule_job(activity_pinger.check_active_sessions, 'Check Jellyfin active sessions',
+                     hours=0, minutes=0,
+                     seconds=jellyfin_interval * bool(jellyfin_backend and CONFIG.FIRST_RUN_COMPLETE))
 
         # Start scheduler
         if start_jobs and len(SCHED.get_jobs()):
@@ -583,6 +590,7 @@ def startup_refresh():
             get_media_backend('jellyfin').get_server_info()
             MEDIA_SERVER_UP = PLEX_SERVER_UP = True
             logger.info("Connected to Jellyfin server.")
+            activity_pinger.check_active_sessions()
         except Exception as error:
             MEDIA_SERVER_UP = PLEX_SERVER_UP = False
             logger.error("Unable to connect to Jellyfin server: %s", error)

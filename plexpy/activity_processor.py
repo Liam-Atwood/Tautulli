@@ -14,7 +14,9 @@
 #  along with Tautulli.  If not, see <http://www.gnu.org/licenses/>.
 
 from collections import defaultdict
+import hashlib
 import json
+import sqlite3
 
 import plexpy
 from plexpy import database
@@ -27,8 +29,66 @@ from plexpy import users
 
 class ActivityProcessor(object):
 
+    @staticmethod
+    def _history_identity(session, started):
+        if (session.get('media_backend') or 'plex') != 'jellyfin':
+            return None
+        parts = (
+            getattr(plexpy.CONFIG, 'MEDIA_SERVER_ID', ''),
+            session.get('external_session_id') or session.get('session_id') or '',
+            session.get('external_item_id') or session.get('rating_key') or '',
+            started,
+        )
+        return hashlib.sha256('\0'.join(str(part) for part in parts).encode('utf-8')).hexdigest()
+
+    @staticmethod
+    def _ensure_jellyfin_references(session):
+        """Create the minimal FK-like rows lifecycle logging needs.
+
+        Phase 8 replaces these placeholders with authoritative server data. Only
+        server-owned columns are updated so local notification/history choices
+        survive both bootstrap and later refreshes.
+        """
+        if (session.get('media_backend') or 'plex') != 'jellyfin':
+            return
+        user_id = helpers.cast_to_int(session.get('user_id'))
+        section_id = helpers.cast_to_int(session.get('section_id'))
+        if not user_id or not section_id:
+            raise ValueError('Jellyfin sessions require mapped user and library identities')
+        username = session.get('username') or session.get('user') or 'Jellyfin User'
+        section_name = session.get('library_name') or session.get('section_name') or 'Jellyfin Library'
+        media_type = session.get('media_type')
+        section_type = {'episode': 'show', 'track': 'artist', 'photo': 'photo'}.get(media_type, 'movie')
+        server_id = str(getattr(plexpy.CONFIG, 'MEDIA_SERVER_ID', '') or '')
+        with database.db_lock:
+            connection = sqlite3.connect(database.db_filename(), timeout=20, isolation_level=None)
+            try:
+                connection.execute('BEGIN IMMEDIATE')
+                connection.execute(
+                    "INSERT INTO users (user_id, username, friendly_name, thumb, is_active, deleted_user) "
+                    "VALUES (?, ?, ?, ?, 1, 0) ON CONFLICT(user_id) DO UPDATE SET "
+                    "username=excluded.username, friendly_name=excluded.friendly_name, "
+                    "thumb=excluded.thumb, is_active=1, deleted_user=0",
+                    [user_id, username, session.get('friendly_name') or username,
+                     session.get('user_thumb') or ''])
+                connection.execute(
+                    "INSERT INTO library_sections (server_id, section_id, section_name, section_type, "
+                    "agent, thumb, art, is_active, deleted_section) VALUES (?, ?, ?, ?, ?, ?, ?, 1, 0) "
+                    "ON CONFLICT(server_id, section_id) DO UPDATE SET section_name=excluded.section_name, "
+                    "section_type=excluded.section_type, thumb=excluded.thumb, art=excluded.art, "
+                    "is_active=1, deleted_section=0",
+                    [server_id, section_id, section_name, section_type, 'jellyfin',
+                     session.get('thumb') or '', session.get('art') or ''])
+                connection.commit()
+            except Exception:
+                connection.rollback()
+                raise
+            finally:
+                connection.close()
+
     def write_session(self, session=None, notify=True):
         if session:
+            self._ensure_jellyfin_references(session)
             db = database.MonitorDatabase()
 
             values = {'session_key': session.get('session_key', ''),
@@ -38,6 +98,7 @@ class ActivityProcessor(object):
                       'external_user_id': session.get('external_user_id') or None,
                       'external_library_id': session.get('external_library_id') or None,
                       'external_session_id': session.get('external_session_id') or None,
+                      'history_identity': session.get('history_identity') or None,
                       'transcode_key': session.get('transcode_key', ''),
                       'section_id': session.get('section_id', ''),
                       'rating_key': session.get('rating_key', ''),
@@ -153,6 +214,11 @@ class ActivityProcessor(object):
             keys = {'session_key': session.get('session_key', ''),
                     'rating_key': session.get('rating_key', '')}
 
+            # A later poll does not know the original start time; retain the
+            # identity assigned on insert rather than replacing it with NULL.
+            if not values['history_identity']:
+                values.pop('history_identity')
+
             result = db.upsert('sessions', values, keys)
 
             if result == 'insert':
@@ -162,7 +228,11 @@ class ActivityProcessor(object):
                                                         machine_id=values['machine_id'],
                                                         media_type=values['media_type'],
                                                         started=started)
-                timestamp = {'started': started, 'initial_stream': initial_stream}
+                timestamp = {
+                    'started': started,
+                    'initial_stream': initial_stream,
+                    'history_identity': self._history_identity(session, started),
+                }
                 db.upsert('sessions', timestamp, keys)
 
                 # Check if any notification agents have notifications enabled
@@ -204,6 +274,16 @@ class ActivityProcessor(object):
                 session.update(raw_stream_info)
 
             session = defaultdict(str, session)
+
+            history_identity = session.get('history_identity') or self._history_identity(
+                session, session.get('started'))
+            if history_identity:
+                existing = database.MonitorDatabase().select_single(
+                    "SELECT id FROM session_history WHERE media_backend = 'jellyfin' "
+                    "AND history_identity = ?", [history_identity])
+                if existing:
+                    logger.info("Tautulli ActivityProcessor :: Jellyfin session history already recorded.")
+                    return session['id']
 
             if is_import:
                 if str(session['stopped']).isdigit():
@@ -294,13 +374,14 @@ class ActivityProcessor(object):
                 # logger.debug("Tautulli ActivityProcessor :: Attempting to write sessionKey %s to session_history table..."
                 #              % session['session_key'])
                 keys = {'id': None}
-                values = {'started': session['started'],
+                history_values = {'started': session['started'],
                           'stopped': stopped,
                           'media_backend': session.get('media_backend') or 'plex',
                           'external_item_id': session.get('external_item_id') or None,
                           'external_user_id': session.get('external_user_id') or None,
                           'external_library_id': session.get('external_library_id') or None,
                           'external_session_id': session.get('external_session_id') or None,
+                          'history_identity': history_identity,
                           'rating_key': session['rating_key'],
                           'parent_rating_key': session['parent_rating_key'],
                           'grandparent_rating_key': session['grandparent_rating_key'],
@@ -327,21 +408,11 @@ class ActivityProcessor(object):
 
                 # logger.debug("Tautulli ActivityProcessor :: Writing sessionKey %s session_history transaction..."
                 #              % session['session_key'])
-                db.upsert(table_name='session_history', key_dict=keys, value_dict=values)
-
-                # Get the last insert row id
-                last_id = db.last_insert_id()
-                self.group_history(last_id, session, metadata)
-                
-                # logger.debug("Tautulli ActivityProcessor :: Successfully written history item, last id for session_history is %s"
-                #              % last_id)
-
                 # Write the session_history_media_info table
 
                 # logger.debug("Tautulli ActivityProcessor :: Attempting to write to sessionKey %s session_history_media_info table..."
                 #              % session['session_key'])
-                keys = {'id': last_id}
-                values = {'rating_key': session['rating_key'],
+                media_values = {'rating_key': session['rating_key'],
                           'video_decision': session['video_decision'],
                           'audio_decision': session['audio_decision'],
                           'transcode_decision': session['transcode_decision'],
@@ -421,8 +492,6 @@ class ActivityProcessor(object):
 
                 # logger.debug("Tautulli ActivityProcessor :: Writing sessionKey %s session_history_media_info transaction..."
                 #              % session['session_key'])
-                db.upsert(table_name='session_history_media_info', key_dict=keys, value_dict=values)
-
                 # Write the session_history_metadata table
                 directors = ";".join(metadata['directors'])
                 writers = ";".join(metadata['writers'])
@@ -440,8 +509,7 @@ class ActivityProcessor(object):
 
                 # logger.debug("Tautulli ActivityProcessor :: Attempting to write to sessionKey %s session_history_metadata table..."
                 #              % session['session_key'])
-                keys = {'id': last_id}
-                values = {'rating_key': session['rating_key'],
+                metadata_values = {'rating_key': session['rating_key'],
                           'parent_rating_key': session['parent_rating_key'],
                           'grandparent_rating_key': session['grandparent_rating_key'],
                           'title': session['title'],
@@ -486,7 +554,10 @@ class ActivityProcessor(object):
 
                 # logger.debug("Tautulli ActivityProcessor :: Writing sessionKey %s session_history_metadata transaction..."
                 #              % session['session_key'])
-                db.upsert(table_name='session_history_metadata', key_dict=keys, value_dict=values)
+                last_id, inserted = database.write_session_history_bundle(
+                    history_values, media_values, metadata_values)
+                if inserted:
+                    self.group_history(last_id, session, metadata)
 
             # Return the session row id when the session is successfully written to the database
             return session['id']

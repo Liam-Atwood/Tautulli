@@ -47,7 +47,10 @@ def test_clean_database_schema_and_idempotence(tmp_path, monkeypatch):
     ).fetchone()[0]
     indexes = {row[1] for row in connection.execute('PRAGMA index_list(external_id_map)')}
     connection.close()
-    assert version == '1'
+    assert version == '2'
+    history_indexes = {row[1] for row in sqlite3.connect(path).execute(
+        'PRAGMA index_list(session_history)')}
+    assert 'idx_session_history_jellyfin_identity' in history_indexes
     assert {'idx_external_id_map_external', 'idx_external_id_map_local'} <= indexes
     assert database.migrate_media_backend_schema(path, backup_required=False) is False
     assert not (tmp_path / 'backups').exists()

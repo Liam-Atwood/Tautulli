@@ -25,6 +25,7 @@ from plexpy import notification_handler
 from plexpy import plextv
 from plexpy import pmsconnect
 from plexpy import web_socket
+from plexpy.media_backend.errors import BackendError
 
 
 monitor_lock = threading.Lock()
@@ -45,7 +46,11 @@ def check_active_sessions(ws_request=False):
             activity_handler.delete_metadata_cache(stream['session_key'])
 
         pms_connect = pmsconnect.PmsConnect()
-        session_list = pms_connect.get_current_activity()
+        try:
+            session_list = pms_connect.get_current_activity(skip_cache=True)
+        except BackendError as error:
+            logger.warn("Tautulli Monitor :: Jellyfin activity request failed: %s", error)
+            return False
 
         logger.debug("Tautulli Monitor :: Checking for active streams.")
 
@@ -68,17 +73,26 @@ def check_active_sessions(ws_request=False):
 
                                     plexpy.NOTIFY_QUEUE.put({'stream_data': stream.copy(), 'notify_action': 'on_pause'})
 
+                                    if stream.get('media_backend') == 'jellyfin':
+                                        monitor_process.set_session_last_paused(
+                                            session_key=stream['session_key'], timestamp=helpers.timestamp())
+
                                 if session['state'] == 'playing' and stream['state'] == 'paused':
                                     logger.debug("Tautulli Monitor :: Session %s resumed." % stream['session_key'])
 
                                     plexpy.NOTIFY_QUEUE.put({'stream_data': stream.copy(), 'notify_action': 'on_resume'})
+
+                                    if stream.get('media_backend') == 'jellyfin':
+                                        monitor_process.set_session_last_paused(
+                                            session_key=stream['session_key'], timestamp=None)
 
                                 if session['state'] == 'error':
                                     logger.debug("Tautulli Monitor :: Session %s encountered an error." % stream['session_key'])
 
                                     plexpy.NOTIFY_QUEUE.put({'stream_data': stream.copy(), 'notify_action': 'on_error'})
 
-                            if stream['state'] == 'paused' and not ws_request:
+                            if stream['state'] == 'paused' and not ws_request and \
+                                    stream.get('media_backend') != 'jellyfin':
                                 # The stream is still paused so we need to increment the paused_counter
                                 # Using the set config parameter as the interval, probably not the most accurate but
                                 # it will have to do for now. If it's a websocket request don't use this method.
@@ -159,6 +173,11 @@ def check_active_sessions(ws_request=False):
                                               "WHERE session_key = ? AND rating_key = ?",
                                               [stream['stopped'], 'stopped', stream['session_key'], stream['rating_key']])
 
+                        if stream.get('media_backend') == 'jellyfin' and stream.get('last_paused'):
+                            monitor_process.set_session_last_paused(
+                                session_key=stream['session_key'], timestamp=None)
+                            stream = monitor_process.get_session_by_key(stream['session_key'])
+
                         progress_percent = helpers.get_percent(stream['view_offset'], stream['duration'])
                         notify_states = notification_handler.get_notify_state(session=stream)
                         if (stream['media_type'] == 'movie' and progress_percent >= plexpy.CONFIG.MOVIE_WATCHED_PERCENT or
@@ -202,8 +221,11 @@ def check_active_sessions(ws_request=False):
                                  % (str(session['session_key']), str(session['user_id']), session['username'],
                                     str(session['rating_key']), session['full_title'], '[Live TV]' if session['live'] else ''))
 
+            return True
+
         else:
             logger.debug("Tautulli Monitor :: Unable to read session list.")
+            return False
 
 
 def connect_server(log=True, startup=False):

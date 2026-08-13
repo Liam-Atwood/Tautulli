@@ -27,7 +27,7 @@ from plexpy import logger
 FILENAME = "tautulli.db"
 db_lock = threading.Lock()
 
-MEDIA_BACKEND_SCHEMA_VERSION = 1
+MEDIA_BACKEND_SCHEMA_VERSION = 2
 MEDIA_BACKEND_SCHEMA_KEY = 'media_backend_schema_version'
 EXTERNAL_ID_COUNTER_KEY = 'external_id_next_local_id'
 EXTERNAL_ID_FLOOR = 1_000_000_000_000
@@ -109,6 +109,47 @@ def reseed_external_id_counter(connection=None, database_file=None):
             connection.close()
 
 
+def write_session_history_bundle(history_values, media_values, metadata_values,
+                                 database_file=None):
+    """Atomically create all three rows that comprise one history record."""
+    filename = db_filename(database_file)
+    with db_lock:
+        connection = sqlite3.connect(filename, timeout=20, isolation_level=None)
+        try:
+            connection.execute('BEGIN IMMEDIATE')
+            identity = history_values.get('history_identity')
+            if identity:
+                existing = connection.execute(
+                    "SELECT id FROM session_history WHERE media_backend = 'jellyfin' "
+                    "AND history_identity = ?", [identity]).fetchone()
+                if existing:
+                    connection.rollback()
+                    return existing[0], False
+            columns = list(history_values)
+            cursor = connection.execute(
+                "INSERT INTO session_history ({}) VALUES ({})".format(
+                    ', '.join(columns), ', '.join('?' for _ in columns)),
+                [history_values[column] for column in columns])
+            history_id = cursor.lastrowid
+            for table_name, values in (
+                    ('session_history_media_info', media_values),
+                    ('session_history_metadata', metadata_values)):
+                row = dict(values)
+                row['id'] = history_id
+                row_columns = list(row)
+                connection.execute(
+                    "INSERT INTO {} ({}) VALUES ({})".format(
+                        table_name, ', '.join(row_columns), ', '.join('?' for _ in row_columns)),
+                    [row[column] for column in row_columns])
+            connection.commit()
+            return history_id, True
+        except Exception:
+            connection.rollback()
+            raise
+        finally:
+            connection.close()
+
+
 def migrate_media_backend_schema(database_file=None, backup_required=True, backup_callback=None,
                                  before_commit=None):
     """Apply the Phase 2 schema atomically and idempotently."""
@@ -148,38 +189,55 @@ def migrate_media_backend_schema(database_file=None, backup_required=True, backu
                 connection.rollback()
                 return False
 
-            connection.execute(
-                "CREATE TABLE IF NOT EXISTS external_id_map ("
-                "id INTEGER PRIMARY KEY AUTOINCREMENT, backend TEXT NOT NULL, server_id TEXT NOT NULL, "
-                "entity_type TEXT NOT NULL, external_id TEXT NOT NULL, local_id INTEGER NOT NULL, "
-                "created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL, "
-                "UNIQUE (backend, server_id, entity_type, external_id), UNIQUE (local_id))"
-            )
-            connection.execute(
-                "CREATE INDEX IF NOT EXISTS idx_external_id_map_external "
-                "ON external_id_map (backend, server_id, entity_type, external_id)"
-            )
-            connection.execute(
-                "CREATE INDEX IF NOT EXISTS idx_external_id_map_local "
-                "ON external_id_map (backend, server_id, entity_type, local_id)"
-            )
+            if current_version < 1:
+                connection.execute(
+                    "CREATE TABLE IF NOT EXISTS external_id_map ("
+                    "id INTEGER PRIMARY KEY AUTOINCREMENT, backend TEXT NOT NULL, server_id TEXT NOT NULL, "
+                    "entity_type TEXT NOT NULL, external_id TEXT NOT NULL, local_id INTEGER NOT NULL, "
+                    "created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL, "
+                    "UNIQUE (backend, server_id, entity_type, external_id), UNIQUE (local_id))"
+                )
+                connection.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_external_id_map_external "
+                    "ON external_id_map (backend, server_id, entity_type, external_id)"
+                )
+                connection.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_external_id_map_local "
+                    "ON external_id_map (backend, server_id, entity_type, local_id)"
+                )
 
-            provenance_columns = (
-                ("media_backend", "TEXT NOT NULL DEFAULT 'plex'"),
-                ('external_item_id', 'TEXT'),
-                ('external_user_id', 'TEXT'),
-                ('external_library_id', 'TEXT'),
-                ('external_session_id', 'TEXT'),
-            )
-            for table_name in ('sessions', 'session_history'):
-                columns = _table_columns(connection, table_name)
-                for column, definition in provenance_columns:
-                    if column not in columns:
+                provenance_columns = (
+                    ("media_backend", "TEXT NOT NULL DEFAULT 'plex'"),
+                    ('external_item_id', 'TEXT'),
+                    ('external_user_id', 'TEXT'),
+                    ('external_library_id', 'TEXT'),
+                    ('external_session_id', 'TEXT'),
+                )
+                for table_name in ('sessions', 'session_history'):
+                    columns = _table_columns(connection, table_name)
+                    for column, definition in provenance_columns:
+                        if column not in columns:
+                            connection.execute(
+                                'ALTER TABLE {} ADD COLUMN {} {}'.format(table_name, column, definition)
+                            )
+                reseed_external_id_counter(connection=connection)
+
+            if current_version < 2:
+                for table_name in ('sessions', 'session_history'):
+                    if 'history_identity' not in _table_columns(connection, table_name):
                         connection.execute(
-                            'ALTER TABLE {} ADD COLUMN {} {}'.format(table_name, column, definition)
+                            'ALTER TABLE {} ADD COLUMN history_identity TEXT'.format(table_name)
                         )
-
-            reseed_external_id_counter(connection=connection)
+                connection.execute(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS idx_sessions_jellyfin_history_identity "
+                    "ON sessions (history_identity) WHERE media_backend = 'jellyfin' "
+                    "AND history_identity IS NOT NULL"
+                )
+                connection.execute(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS idx_session_history_jellyfin_identity "
+                    "ON session_history (history_identity) WHERE media_backend = 'jellyfin' "
+                    "AND history_identity IS NOT NULL"
+                )
             connection.execute(
                 "INSERT OR REPLACE INTO version_info (key, value) VALUES (?, ?)",
                 [MEDIA_BACKEND_SCHEMA_KEY, str(MEDIA_BACKEND_SCHEMA_VERSION)]

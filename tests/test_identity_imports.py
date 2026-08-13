@@ -47,6 +47,7 @@ def test_legacy_merge_adds_defaults_and_reseeds(tmp_path, monkeypatch):
     seed_history(source, 1, database.EXTERNAL_ID_FLOOR + 50)
     connection = sqlite3.connect(source)
     connection.execute('DROP TABLE external_id_map')
+    connection.execute('DROP INDEX idx_session_history_jellyfin_identity')
     for column in ('media_backend', 'external_item_id', 'external_user_id',
                    'external_library_id', 'external_session_id'):
         connection.execute('ALTER TABLE session_history DROP COLUMN {}'.format(column))

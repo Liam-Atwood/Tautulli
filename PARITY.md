@@ -17,6 +17,8 @@ Statuses are evidence-based. `UNVERIFIED` means implementation or automated Jell
 | Platform/client statistics | UNVERIFIED | Session client/device mapping | Contract and reporting tests |
 | IP history | UNVERIFIED | `RemoteEndPoint` | IPv4/IPv6 lifecycle tests |
 | Local/remote statistics | UNVERIFIED | CIDR classification | Network classification tests |
+| Users | FULL | Jellyfin `/Users` policy normalization | Phase 8 authoritative sync and preference-preservation tests |
+| Libraries | FULL | Jellyfin virtual folders and item totals | Phase 8 type/count and transactional replacement tests |
 | Concurrent streams | UNVERIFIED | Existing concurrency rules | Simultaneous-session test |
 | New-device notifications | UNVERIFIED | Stable `DeviceId` | Notification trigger test |
 | Recently added | UNVERIFIED | Jellyfin item queries | Contract and ordering tests |

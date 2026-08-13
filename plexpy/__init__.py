@@ -499,6 +499,11 @@ def initialize_scheduler():
         schedule_job(activity_pinger.check_active_sessions, 'Check Jellyfin active sessions',
                      hours=0, minutes=0,
                      seconds=jellyfin_interval * bool(jellyfin_backend and CONFIG.FIRST_RUN_COMPLETE))
+        user_hours = CONFIG.REFRESH_USERS_INTERVAL if 1 <= CONFIG.REFRESH_USERS_INTERVAL <= 24 else 12
+        library_hours = CONFIG.REFRESH_LIBRARIES_INTERVAL if 1 <= CONFIG.REFRESH_LIBRARIES_INTERVAL <= 24 else 12
+        if jellyfin_backend and CONFIG.FIRST_RUN_COMPLETE:
+            schedule_job(libraries.refresh_libraries, 'Refresh libraries list', hours=library_hours)
+            schedule_job(users.refresh_users, 'Refresh users list', hours=user_hours)
 
         # Start scheduler
         if start_jobs and len(SCHED.get_jobs()):
@@ -590,6 +595,10 @@ def startup_refresh():
             get_media_backend('jellyfin').get_server_info()
             MEDIA_SERVER_UP = PLEX_SERVER_UP = True
             logger.info("Connected to Jellyfin server.")
+            if CONFIG.REFRESH_LIBRARIES_ON_STARTUP:
+                libraries.refresh_libraries()
+            if CONFIG.REFRESH_USERS_ON_STARTUP:
+                users.refresh_users()
             activity_pinger.check_active_sessions()
         except Exception as error:
             MEDIA_SERVER_UP = PLEX_SERVER_UP = False

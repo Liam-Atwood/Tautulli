@@ -9,7 +9,7 @@ from plexpy.media_backend.capabilities import BackendCapabilities
 from plexpy.media_backend.errors import (
     BackendConfigurationError, BackendFeatureUnsupportedError, BackendServerError,
 )
-from plexpy.media_backend.idmap import ExternalIdMapper
+from plexpy.media_backend.idmap import ExternalIdMapper, ENTITY_LIBRARY, ENTITY_USER
 from plexpy.media_backend.jellyfin.client import JellyfinClient, JellyfinImage
 from plexpy.media_backend.jellyfin.metadata import JellyfinMetadataAdapter, parse_image_reference
 from plexpy.media_backend.jellyfin.activity import JellyfinActivityNormalizer
@@ -94,8 +94,66 @@ class JellyfinBackend(MediaBackend):
     def get_item_children(self, local_item_id, **kwargs):
         return self.metadata.get_children(local_item_id, **kwargs)
     def get_recently_added(self, **kwargs): self._unsupported('Recently added')
-    def get_libraries(self): self._unsupported('Libraries')
-    def get_users(self): self._unsupported('Users')
+    def get_libraries(self):
+        self._ensure_connected()
+        output = []
+        type_map = {
+            'movies': ('movie', 'Movie', None, None),
+            'tvshows': ('show', 'Series', 'Season', 'Episode'),
+            'music': ('artist', 'MusicArtist', 'MusicAlbum', 'Audio'),
+            'photos': ('photo', 'PhotoAlbum', None, 'Photo'),
+            'homevideos': ('movie', 'Video', None, None),
+            'mixed': ('movie', None, None, None),
+        }
+        for library in self.client.get_libraries() or []:
+            external_id = str(library.get('ItemId') or '')
+            if not external_id:
+                continue
+            section_type, count_type, parent_type, child_type = type_map.get(
+                str(library.get('CollectionType') or 'mixed').lower(), ('movie', None, None, None))
+            output.append({
+                'section_id': self.mapper.get_or_create(ENTITY_LIBRARY, external_id),
+                'external_library_id': external_id,
+                'section_name': library.get('Name') or '', 'section_type': section_type,
+                'agent': 'jellyfin', 'thumb': '', 'art': '', 'is_active': 1,
+                'count': self.client.get_library_count(external_id, count_type),
+                'parent_count': (self.client.get_library_count(external_id, parent_type)
+                                 if parent_type else None),
+                'child_count': (self.client.get_library_count(external_id, child_type)
+                                if child_type else None),
+            })
+        return output
+
+    def get_users(self):
+        self._ensure_connected()
+        libraries = {str(library.get('ItemId')): self.mapper.get_or_create(
+            ENTITY_LIBRARY, str(library.get('ItemId'))) for library in self.client.get_libraries() or []
+                     if library.get('ItemId')}
+        output = []
+        for user in self.client.get_users() or []:
+            external_id = str(user.get('Id') or '')
+            if not external_id:
+                continue
+            policy = user.get('Policy') or {}
+            shared = list(libraries.values()) if policy.get('EnableAllFolders') else [
+                libraries[value] for value in policy.get('EnabledFolders') or [] if value in libraries]
+            output.append({
+                'user_id': self.mapper.get_or_create(ENTITY_USER, external_id),
+                'external_user_id': external_id, 'username': user.get('Name') or '',
+                'friendly_name': user.get('Name') or '', 'title': None, 'email': '',
+                'thumb': ('jellyfin://user/{}/Primary/0'.format(external_id)
+                          if user.get('PrimaryImageTag') else ''),
+                'is_active': int(not policy.get('IsDisabled', False)),
+                'is_admin': int(bool(policy.get('IsAdministrator'))), 'is_home_user': 1,
+                'is_allow_sync': int(bool(policy.get('EnableContentDownloading'))),
+                'is_restricted': int(not bool(policy.get('EnableAllFolders'))),
+                'shared_libraries': shared, 'filter_all': '', 'filter_movies': '',
+                'filter_tv': '', 'filter_music': '', 'filter_photos': '',
+            })
+        return output
+
+    def get_library_details(self):
+        return self.get_libraries()
     def search(self, query, **kwargs): self._unsupported('Search')
     def get_image(self, image_ref, **kwargs):
         _, external_id, image_type, image_index = parse_image_reference(image_ref)

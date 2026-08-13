@@ -33,9 +33,18 @@ from plexpy import session
 
 def refresh_users():
     logger.info("Tautulli Users :: Requesting users list refresh...")
-    result = plextv.PlexTV().get_full_users_list()
+    jellyfin = getattr(plexpy.CONFIG, 'MEDIA_SERVER_TYPE', 'plex') == 'jellyfin'
+    if jellyfin:
+        from plexpy.media_backend.factory import get_media_backend
+        try:
+            result = get_media_backend('jellyfin').get_users()
+        except Exception as error:
+            logger.warn("Tautulli Users :: Jellyfin refresh failed: %s", error)
+            return False
+    else:
+        result = plextv.PlexTV().get_full_users_list()
 
-    server_id = plexpy.CONFIG.PMS_IDENTIFIER
+    server_id = (plexpy.CONFIG.MEDIA_SERVER_ID if jellyfin else plexpy.CONFIG.PMS_IDENTIFIER)
     if not server_id:
         logger.error("Tautulli Users :: No PMS identifier, cannot refresh users. Verify server in settings.")
         return
@@ -43,12 +52,20 @@ def refresh_users():
     if result:
         monitor_db = database.MonitorDatabase()
 
+        if jellyfin:
+            return _replace_jellyfin_users(result, server_id)
+
         # Keep track of user_id to update is_active status
         user_ids = [0]  # Local user always considered active
         new_users = []
 
         for item in result:
-            if item.get('shared_libraries'):
+            item = dict(item)
+            item.pop('external_user_id', None)
+            if jellyfin:
+                item['shared_libraries'] = ';'.join(str(value) for value in item.get('shared_libraries') or [])
+                user_ids.append(helpers.cast_to_int(item['user_id']))
+            elif item.get('shared_libraries'):
                 item['shared_libraries'] = ';'.join(item['shared_libraries'])
                 # Only append user if libraries are shared
                 user_ids.append(helpers.cast_to_int(item['user_id']))
@@ -73,7 +90,7 @@ def refresh_users():
                     item['custom_avatar_url'] = item['thumb']
 
             # Check if title is the same as the username
-            if item['title'] == item['username']:
+            if item.get('title') == item['username']:
                 item['title'] = None
 
             # Check if username is blank (Managed Users)
@@ -96,6 +113,54 @@ def refresh_users():
     else:
         logger.warn("Tautulli Users :: Unable to refresh users list.")
         return False
+
+
+def _replace_jellyfin_users(result, server_id):
+    """Replace server-owned Jellyfin user fields in one transaction."""
+    import sqlite3
+    active_ids = []
+    with database.db_lock:
+        connection = sqlite3.connect(database.db_filename(), timeout=20, isolation_level=None)
+        try:
+            connection.execute('BEGIN IMMEDIATE')
+            for source in result:
+                item = dict(source)
+                user_id = helpers.cast_to_int(item.pop('user_id'))
+                item.pop('external_user_id', None)
+                active_ids.append(user_id)
+                shared = ';'.join(str(value) for value in item.pop('shared_libraries', []) or [])
+                connection.execute(
+                    "INSERT INTO users (user_id, username, friendly_name, thumb, title, email, "
+                    "is_active, is_admin, is_home_user, is_allow_sync, is_restricted, "
+                    "shared_libraries, filter_all, filter_movies, filter_tv, filter_music, filter_photos, "
+                    "deleted_user) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0) "
+                    "ON CONFLICT(user_id) DO UPDATE SET username=excluded.username, "
+                    "friendly_name=excluded.friendly_name, thumb=excluded.thumb, title=excluded.title, "
+                    "email=excluded.email, is_active=excluded.is_active, is_admin=excluded.is_admin, "
+                    "is_home_user=excluded.is_home_user, is_allow_sync=excluded.is_allow_sync, "
+                    "is_restricted=excluded.is_restricted, shared_libraries=excluded.shared_libraries, "
+                    "filter_all=excluded.filter_all, filter_movies=excluded.filter_movies, "
+                    "filter_tv=excluded.filter_tv, filter_music=excluded.filter_music, "
+                    "filter_photos=excluded.filter_photos, deleted_user=0",
+                    [user_id, item.get('username') or item.get('friendly_name') or 'Jellyfin User',
+                     item.get('friendly_name'), item.get('thumb', ''), item.get('title'),
+                     item.get('email', ''), item.get('is_active', 1), item.get('is_admin', 0),
+                     item.get('is_home_user', 1), item.get('is_allow_sync', 0),
+                     item.get('is_restricted', 0), shared, item.get('filter_all', ''),
+                     item.get('filter_movies', ''), item.get('filter_tv', ''),
+                     item.get('filter_music', ''), item.get('filter_photos', '')])
+            placeholders = ','.join('?' for _ in active_ids) or 'NULL'
+            connection.execute(
+                'UPDATE users SET is_active = 0 WHERE user_id != 0 AND user_id NOT IN ({})'.format(
+                    placeholders), active_ids)
+            connection.commit()
+        except Exception:
+            connection.rollback()
+            raise
+        finally:
+            connection.close()
+    logger.info("Tautulli Users :: Jellyfin users list refreshed.")
+    return True
 
 
 class Users(object):

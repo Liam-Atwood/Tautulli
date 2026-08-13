@@ -232,6 +232,11 @@ class JellyfinClient:
     def get_libraries(self):
         return self._request('GET', 'Library/VirtualFolders')
 
+    def get_library_count(self, library_id, include_item_types=None):
+        result = self.get_items(parentId=library_id, recursive=True, limit=0,
+                                includeItemTypes=include_item_types)
+        return int((result or {}).get('TotalRecordCount') or 0)
+
     def get_image(self, item_id, image_type='Primary', image_index=0, **params):
         endpoint = 'Items/{}/Images/{}/{}'.format(
             quote(str(item_id), safe=''), quote(str(image_type), safe=''), int(image_index))

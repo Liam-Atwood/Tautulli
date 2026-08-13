@@ -34,15 +34,28 @@ from plexpy.plex import Plex
 def refresh_libraries():
     logger.info("Tautulli Libraries :: Requesting libraries list refresh...")
 
-    server_id = plexpy.CONFIG.PMS_IDENTIFIER
+    server_id = (getattr(plexpy.CONFIG, 'MEDIA_SERVER_ID', '')
+                 if getattr(plexpy.CONFIG, 'MEDIA_SERVER_TYPE', 'plex') == 'jellyfin'
+                 else plexpy.CONFIG.PMS_IDENTIFIER)
     if not server_id:
         logger.error("Tautulli Libraries :: No PMS identifier, cannot refresh libraries. Verify server in settings.")
         return
 
-    library_sections = pmsconnect.PmsConnect().get_library_details()
+    try:
+        if getattr(plexpy.CONFIG, 'MEDIA_SERVER_TYPE', 'plex') == 'jellyfin':
+            from plexpy.media_backend.factory import get_media_backend
+            library_sections = get_media_backend('jellyfin').get_libraries()
+        else:
+            library_sections = pmsconnect.PmsConnect().get_library_details()
+    except Exception as error:
+        logger.warn("Tautulli Libraries :: Library refresh failed: %s", error)
+        return False
 
     if library_sections:
         monitor_db = database.MonitorDatabase()
+
+        if getattr(plexpy.CONFIG, 'MEDIA_SERVER_TYPE', 'plex') == 'jellyfin':
+            return _replace_jellyfin_libraries(library_sections, server_id)
 
         library_keys = []
         new_keys = []
@@ -51,6 +64,8 @@ def refresh_libraries():
         section_ids = [common.LIVE_TV_SECTION_ID]  # Live TV library always considered active
 
         for section in library_sections:
+            section = dict(section)
+            section.pop('external_library_id', None)
             section_ids.append(helpers.cast_to_int(section['section_id']))
 
             section_keys = {'server_id': server_id,
@@ -90,6 +105,53 @@ def refresh_libraries():
     else:
         logger.warn("Tautulli Libraries :: Unable to refresh libraries list.")
         return False
+
+
+def _replace_jellyfin_libraries(library_sections, server_id):
+    """Replace server-owned Jellyfin library fields in one transaction."""
+    import sqlite3
+    active_ids = []
+    new_ids = []
+    with database.db_lock:
+        connection = sqlite3.connect(database.db_filename(), timeout=20, isolation_level=None)
+        try:
+            connection.execute('BEGIN IMMEDIATE')
+            for source in library_sections:
+                section = dict(source)
+                section_id = helpers.cast_to_int(section['section_id'])
+                active_ids.append(section_id)
+                exists = connection.execute(
+                    'SELECT 1 FROM library_sections WHERE server_id = ? AND section_id = ?',
+                    [server_id, section_id]).fetchone()
+                if not exists:
+                    new_ids.append(section_id)
+                connection.execute(
+                    "INSERT INTO library_sections (server_id, section_id, section_name, section_type, "
+                    "agent, thumb, art, count, parent_count, child_count, is_active, deleted_section) "
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 0) "
+                    "ON CONFLICT(server_id, section_id) DO UPDATE SET section_name=excluded.section_name, "
+                    "section_type=excluded.section_type, agent=excluded.agent, thumb=excluded.thumb, "
+                    "art=excluded.art, count=excluded.count, parent_count=excluded.parent_count, "
+                    "child_count=excluded.child_count, is_active=1, deleted_section=0",
+                    [server_id, section_id, section.get('section_name', ''),
+                     section.get('section_type', 'movie'), section.get('agent', 'jellyfin'),
+                     section.get('thumb', ''), section.get('art', ''), section.get('count', 0),
+                     section.get('parent_count'), section.get('child_count')])
+            placeholders = ','.join('?' for _ in active_ids) or 'NULL'
+            connection.execute(
+                'UPDATE library_sections SET is_active = 0 WHERE server_id != ? OR '
+                'section_id NOT IN ({})'.format(placeholders), [server_id] + active_ids)
+            connection.commit()
+        except Exception:
+            connection.rollback()
+            raise
+        finally:
+            connection.close()
+    if new_ids:
+        plexpy.CONFIG.HOME_LIBRARY_CARDS = list(plexpy.CONFIG.HOME_LIBRARY_CARDS) + new_ids
+        plexpy.CONFIG.write()
+    logger.info("Tautulli Libraries :: Jellyfin libraries list refreshed.")
+    return True
 
 
 def add_live_tv_library(refresh=False):

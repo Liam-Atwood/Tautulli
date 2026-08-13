@@ -6,20 +6,20 @@ Statuses are evidence-based. `UNVERIFIED` means implementation or automated Jell
 |---|---|---|---|
 | Current activity | FULL | `/Sessions` normalization | Contract, polling, and live playback tests |
 | Play history | FULL | Phase 7 lifecycle reconciler | `tests/test_jellyfin_lifecycle.py`: prerequisites, elapsed pauses, atomic bundle, rollback, exactly-once identity |
-| Watch duration | UNVERIFIED | Existing history calculations | Reporting regression tests |
-| Pause duration | UNVERIFIED | Paused player state | Pause/resume lifecycle test |
-| Watched threshold | UNVERIFIED | Existing percentage calculation | Threshold boundary tests |
-| Movie statistics | UNVERIFIED | Existing database/reporting | Deterministic report fixture |
-| TV statistics | UNVERIFIED | Existing hierarchy/reporting | Episode hierarchy report fixture |
-| Music statistics | UNVERIFIED | Existing hierarchy/reporting | Track hierarchy report fixture |
-| User statistics | UNVERIFIED | Existing database/reporting | Multi-user fixture |
-| Library statistics | UNVERIFIED | Libraries plus existing reports | Multi-library fixture |
-| Platform/client statistics | UNVERIFIED | Session client/device mapping | Contract and reporting tests |
+| Watch duration | FULL | Existing history calculations | Mixed-backend deterministic reporting fixture |
+| Pause duration | FULL | Paused player state | Timestamp lifecycle and reporting tests |
+| Watched threshold | FULL | Existing percentage calculation | Frozen reporting regression tests |
+| Movie statistics | FULL | Existing database/reporting | Plex/Jellyfin equivalent report fixture |
+| TV statistics | FULL | Existing hierarchy/reporting | Plex/Jellyfin episode report fixture |
+| Music statistics | FULL | Existing hierarchy/reporting | Plex/Jellyfin track report fixture |
+| User statistics | FULL | Existing database/reporting | Mapped multi-user fixture |
+| Library statistics | FULL | Libraries plus existing reports | Mapped multi-library fixture |
+| Platform/client statistics | FULL | Session client/device mapping | Activity and reporting contract tests |
 | IP history | UNVERIFIED | `RemoteEndPoint` | IPv4/IPv6 lifecycle tests |
 | Local/remote statistics | UNVERIFIED | CIDR classification | Network classification tests |
 | Users | FULL | Jellyfin `/Users` policy normalization | Phase 8 authoritative sync and preference-preservation tests |
 | Libraries | FULL | Jellyfin virtual folders and item totals | Phase 8 type/count and transactional replacement tests |
-| Concurrent streams | UNVERIFIED | Existing concurrency rules | Simultaneous-session test |
+| Concurrent streams | FULL | Existing concurrency rules | Deterministic overlap report fixture |
 | New-device notifications | UNVERIFIED | Stable `DeviceId` | Notification trigger test |
 | Recently added | UNVERIFIED | Jellyfin item queries | Contract and ordering tests |
 | Newsletters | UNVERIFIED | Existing renderer | Grouping and artwork tests |

@@ -39,9 +39,12 @@ opcode_data = (websocket.ABNF.OPCODE_TEXT, websocket.ABNF.OPCODE_BINARY)
 ws_shutdown = False
 pong_timer = None
 pong_count = 0
+jellyfin_socket = None
 
 
 def start_thread():
+    if getattr(plexpy.CONFIG, 'MEDIA_SERVER_TYPE', 'plex') == 'jellyfin':
+        return start_jellyfin_thread()
     try:
         # Check for any existing sessions on start up
         activity_pinger.check_active_sessions(ws_request=True)
@@ -110,7 +113,33 @@ def reconnect():
 def shutdown():
     global ws_shutdown
     ws_shutdown = True
+    global jellyfin_socket
+    if jellyfin_socket:
+        jellyfin_socket.close()
+        jellyfin_socket = None
+    if getattr(plexpy.CONFIG, 'MEDIA_SERVER_TYPE', 'plex') == 'jellyfin':
+        return
     close()
+
+
+def start_jellyfin_thread():
+    global jellyfin_socket
+    if not getattr(plexpy.CONFIG, 'JELLYFIN_WEBSOCKET_ENABLED', True):
+        return None
+    if jellyfin_socket and jellyfin_socket.connected:
+        return jellyfin_socket._thread
+    from plexpy import libraries, users
+    from plexpy.media_backend.factory import get_media_backend
+    from plexpy.media_backend.jellyfin.websocket import JellyfinWebSocketClient
+    backend = get_media_backend('jellyfin')
+    backend._ensure_connected()
+    jellyfin_socket = JellyfinWebSocketClient(
+        backend.client,
+        reconcile=lambda: activity_pinger.check_active_sessions(ws_request=True),
+        refresh_libraries=libraries.refresh_libraries,
+        refresh_users=users.refresh_users,
+    )
+    return jellyfin_socket.start()
 
 
 def close():

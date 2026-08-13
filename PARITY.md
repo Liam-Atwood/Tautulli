@@ -5,6 +5,7 @@ Statuses are evidence-based. `UNVERIFIED` means implementation or automated Jell
 | Tautulli feature | Initial status | Jellyfin strategy | Required evidence |
 |---|---|---|---|
 | Current activity | FULL | `/Sessions` normalization | Contract, polling, and live playback tests |
+| Websocket session hints | FULL | Jellyfin `/socket` plus authoritative REST | Debounce, deduplication, reconnect, fallback, and lifecycle tests |
 | Play history | FULL | Phase 7 lifecycle reconciler | `tests/test_jellyfin_lifecycle.py`: prerequisites, elapsed pauses, atomic bundle, rollback, exactly-once identity |
 | Watch duration | FULL | Existing history calculations | Mixed-backend deterministic reporting fixture |
 | Pause duration | FULL | Paused player state | Timestamp lifecycle and reporting tests |
@@ -84,3 +85,13 @@ Phase 5 normalizes Jellyfin movies, episodic items, music, photos, collections, 
 ## Phase 6 activity evidence
 
 Phase 6 is polling-only. Contract and fixture tests cover playing/paused sessions, direct play/direct stream/transcode decisions, selected streams, audio-only and subtitle paths, deterministic collision-safe session keys, IPv4/IPv6 CIDR classification, nullable TLS state, provenance, stable ordering, aggregate bandwidth, privacy masking, malformed records, caching, and `skip_cache`. The live matrix reports a real fixture playback session and validates the normalized metadata and current-activity output on Jellyfin 10.10.7 and 10.11.11 with Python 3.10 and 3.13. No scheduler invokes session reconciliation, and polling does not write active sessions, history, or notifications.
+
+## Phases 7–10 evidence
+
+Phase 7 connects normalized Jellyfin activity to the existing lifecycle reconciler with an independently bounded 5–60 second interval. Tests cover minimal user/library bootstrap, elapsed pause timestamps, notifications, watched calculations, restart-safe active rows, transactional three-table history writes, rollback, and exactly-once Jellyfin history identities.
+
+Phase 8 performs libraries-first authoritative synchronization. Jellyfin policies and virtual-folder types/counts are normalized to the established user and library tables while local notification, history, guest, and custom-artwork preferences survive refreshes. Fetch failures cannot partially deactivate prior data.
+
+Phase 9 compares the complete existing report output for equivalent Plex and Jellyfin histories with different numeric namespaces and provenance. Movie, television, music, users, libraries, platforms, durations, grouping, and concurrency are identical after normalizing identifiers.
+
+Phase 10 adds `/socket` as a loss-tolerant hint channel. It uses the official MediaBrowser header, `SessionsStart` subscription, bounded message deduplication, 250 ms per-domain debounce, tolerant unknown-message handling, and capped reconnect backoff. Session hints invoke authoritative REST reconciliation; polling stays scheduled and websocket failure never changes REST-derived server health.

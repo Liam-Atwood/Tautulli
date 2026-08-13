@@ -600,6 +600,8 @@ def startup_refresh():
             if CONFIG.REFRESH_USERS_ON_STARTUP:
                 users.refresh_users()
             activity_pinger.check_active_sessions()
+            if getattr(CONFIG, 'JELLYFIN_WEBSOCKET_ENABLED', True):
+                web_socket.start_thread()
         except Exception as error:
             MEDIA_SERVER_UP = PLEX_SERVER_UP = False
             logger.error("Unable to connect to Jellyfin server: %s", error)

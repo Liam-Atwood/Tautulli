@@ -15,7 +15,7 @@ from plexpy.media_backend.jellyfin.metadata import JellyfinMetadataAdapter, pars
 from plexpy.media_backend.jellyfin.activity import JellyfinActivityNormalizer
 
 
-JELLYFIN_CAPABILITIES = BackendCapabilities()
+JELLYFIN_CAPABILITIES = BackendCapabilities(websocket_sessions=True)
 
 
 class JellyfinBackend(MediaBackend):

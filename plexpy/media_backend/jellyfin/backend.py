@@ -9,13 +9,16 @@ from plexpy.media_backend.capabilities import BackendCapabilities
 from plexpy.media_backend.errors import (
     BackendConfigurationError, BackendFeatureUnsupportedError, BackendServerError,
 )
-from plexpy.media_backend.idmap import ExternalIdMapper, ENTITY_LIBRARY, ENTITY_USER
+from plexpy.media_backend.idmap import (
+    ExternalIdMapper, ENTITY_COLLECTION, ENTITY_LIBRARY, ENTITY_PLAYLIST, ENTITY_USER,
+)
 from plexpy.media_backend.jellyfin.client import JellyfinClient, JellyfinImage
 from plexpy.media_backend.jellyfin.metadata import JellyfinMetadataAdapter, parse_image_reference
 from plexpy.media_backend.jellyfin.activity import JellyfinActivityNormalizer
 
 
-JELLYFIN_CAPABILITIES = BackendCapabilities(websocket_sessions=True)
+JELLYFIN_CAPABILITIES = BackendCapabilities(
+    websocket_sessions=True, playlists=True, collections=True)
 
 
 class JellyfinBackend(MediaBackend):
@@ -186,7 +189,27 @@ class JellyfinBackend(MediaBackend):
 
     def get_library_details(self):
         return self.get_libraries()
-    def search(self, query, **kwargs): self._unsupported('Search')
+    def search(self, query, **kwargs):
+        return self.get_search_results(query=query, limit=kwargs.get('limit', ''),
+                                       user_id=kwargs.get('user_id'))
+
+    def get_search_results(self, query='', limit='', user_id=None):
+        groups = {key: [] for key in (
+            'movie', 'show', 'season', 'episode', 'artist', 'album', 'track', 'collection')}
+        if not str(query or '').strip():
+            return {'results_count': 0, 'results_list': groups}
+        result = self.client.search_items(
+            str(query).strip(), limit=int(limit or 50), user_id=user_id,
+            include_item_types='Movie,Series,Season,Episode,MusicArtist,MusicAlbum,Audio,BoxSet')
+        for item in (result or {}).get('Items', []):
+            try:
+                metadata = self.metadata.get_metadata(item['Id'], user_id=user_id)
+            except (KeyError, BackendFeatureUnsupportedError):
+                continue
+            if metadata['media_type'] in groups:
+                groups[metadata['media_type']].append(metadata)
+        return {'results_count': sum(len(values) for values in groups.values()),
+                'results_list': groups}
     def get_image(self, image_ref, **kwargs):
         _, external_id, image_type, image_index = parse_image_reference(image_ref)
         image = self.client.get_image(external_id, image_type=image_type, image_index=image_index)
@@ -240,6 +263,26 @@ class JellyfinBackend(MediaBackend):
         )
     def terminate_session(self, session_id, message=None): self._unsupported('Session termination')
     def get_devices(self): self._unsupported('Devices')
-    def get_playlists(self, **kwargs): self._unsupported('Playlists')
-    def get_collections(self, **kwargs): self._unsupported('Collections')
+    def _normalize_container_list(self, result, entity, user_id=None, section_id=None):
+        output = []
+        for item in (result or {}).get('Items', []):
+            metadata = self.metadata.get_metadata(item['Id'], user_id=user_id, media_info=False)
+            metadata['rating_key'] = self.mapper.get_or_create(entity, str(item['Id']))
+            metadata['child_count'] = item.get('ChildCount', '')
+            metadata['section_id'] = section_id or metadata.get('section_id')
+            output.append(metadata)
+        return output
+
+    def get_playlists(self, **kwargs):
+        result = self.client.get_playlists(user_id=kwargs.get('user_id'), limit=kwargs.get('limit', 100))
+        return self._normalize_container_list(
+            result, ENTITY_PLAYLIST, user_id=kwargs.get('user_id'), section_id=kwargs.get('section_id'))
+
+    def get_collections(self, **kwargs):
+        section_id = kwargs.get('section_id')
+        external_library = self.mapper.to_external(ENTITY_LIBRARY, section_id) if section_id else None
+        result = self.client.get_collections(
+            parent_id=external_library, user_id=kwargs.get('user_id'), limit=kwargs.get('limit', 100))
+        return self._normalize_container_list(
+            result, ENTITY_COLLECTION, user_id=kwargs.get('user_id'), section_id=section_id)
     def get_server_update_status(self): self._unsupported('Server update status')

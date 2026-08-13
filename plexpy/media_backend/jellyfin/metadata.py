@@ -215,7 +215,8 @@ class JellyfinMetadataAdapter:
         return output
 
     def get_children(self, local_item_id, **kwargs):
-        external_id = self.mapper.to_external(ENTITY_ITEM, local_item_id)
+        external_id = next((value for entity in (ENTITY_ITEM, ENTITY_COLLECTION, ENTITY_PLAYLIST)
+                            if (value := self.mapper.to_external(entity, local_item_id)) is not None), None)
         if external_id is None: return {'children_count': 0, 'children_type': '', 'title': '', 'children_list': []}
         result = self.client.get_items(parentId=external_id, recursive=False, fields=self.FIELDS)
         children = [self.get_metadata(item['Id'], **kwargs) for item in result.get('Items', [])]

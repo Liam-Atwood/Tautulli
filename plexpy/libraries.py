@@ -189,6 +189,10 @@ def has_library_type(section_type):
 
 
 def get_collections(section_id=None):
+    if getattr(plexpy.CONFIG, 'MEDIA_SERVER_TYPE', 'plex') == 'jellyfin':
+        from plexpy.media_backend.factory import get_media_backend
+        return [_collection_compat(item) for item in
+                get_media_backend('jellyfin').get_collections(section_id=section_id)]
     plex = Plex(token=session.get_session_user_token())
     library = plex.get_library(section_id)
 
@@ -237,6 +241,22 @@ def get_collections(section_id=None):
     return collections_list
 
 
+def _collection_compat(item):
+    return {
+        'addedAt': item.get('added_at', ''), 'art': item.get('art', ''),
+        'childCount': item.get('child_count', ''), 'collectionMode': -1,
+        'collectionPublished': None, 'collectionSort': 0,
+        'contentRating': item.get('content_rating', ''), 'guid': item.get('guid', ''),
+        'librarySectionID': item.get('section_id', ''),
+        'librarySectionTitle': item.get('library_name', ''),
+        'maxYear': item.get('max_year', ''), 'minYear': item.get('min_year', ''),
+        'ratingKey': item.get('rating_key', ''), 'smart': None,
+        'subtype': '', 'summary': item.get('summary', ''), 'thumb': item.get('thumb', ''),
+        'title': item.get('title', ''), 'titleSort': item.get('sort_title') or item.get('title', ''),
+        'type': 'collection', 'updatedAt': item.get('updated_at', ''),
+    }
+
+
 def get_collections_list(section_id=None, **kwargs):
     if not section_id:
         default_return = {'recordsFiltered': 0,
@@ -281,6 +301,10 @@ def get_collections_list(section_id=None, **kwargs):
 
 
 def get_playlists(section_id=None, user_id=None):
+    if getattr(plexpy.CONFIG, 'MEDIA_SERVER_TYPE', 'plex') == 'jellyfin':
+        from plexpy.media_backend.factory import get_media_backend
+        return [_playlist_compat(item, user_id) for item in get_media_backend('jellyfin').get_playlists(
+            section_id=section_id, user_id=user_id)]
     if user_id and not session.get_session_user_id():
         user_tokens = users.Users().get_tokens(user_id=user_id)
         plex_token = user_tokens['server_token']
@@ -321,6 +345,19 @@ def get_playlists(section_id=None, user_id=None):
         playlists_list.append(playlist_dict)
 
     return playlists_list
+
+
+def _playlist_compat(item, user_id=None):
+    media_info = item.get('media_info') or []
+    duration = sum(helpers.cast_to_int(media.get('duration')) for media in media_info)
+    return {
+        'addedAt': item.get('added_at', ''), 'composite': item.get('thumb', ''),
+        'duration': duration or item.get('duration', ''), 'guid': item.get('guid', ''),
+        'leafCount': item.get('child_count', ''), 'librarySectionID': item.get('section_id', ''),
+        'playlistType': '', 'ratingKey': item.get('rating_key', ''), 'smart': None,
+        'summary': item.get('summary', ''), 'title': item.get('title', ''),
+        'type': 'playlist', 'updatedAt': item.get('updated_at', ''), 'userID': user_id,
+    }
 
 
 def get_playlists_list(section_id=None, user_id=None, **kwargs):

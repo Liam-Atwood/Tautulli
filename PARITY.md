@@ -38,9 +38,9 @@ Statuses are evidence-based. `UNVERIFIED` means implementation or automated Jell
 | Server up/down | FULL | Backend-neutral health connection | Startup success/failure tests |
 | Authentication failure | FULL | Structured HTTP auth errors | 401/403 tests |
 | Server update notification | UNVERIFIED | System/update API | Version-specific integration test |
-| Search | UNVERIFIED | Search API | Cross-media search fixture |
-| Collections | UNVERIFIED | BoxSet/collection APIs | Collection hierarchy test |
-| Playlists | UNVERIFIED | Playlist API | Playlist item test |
+| Search | FULL | User-scoped recursive item search | Cross-media grouping and compatibility-shape tests |
+| Collections | FULL | User-scoped BoxSet queries | Listing, mapped identity, metadata, child navigation, and helper-routing tests |
+| Playlists | FULL | Authorized user playlist queries | Listing, mapped identity, metadata, child navigation, and helper-routing tests |
 | Live TV | UNVERIFIED | Live TV APIs | Channel/program/recording tests |
 | Artwork | FULL | Token-safe image proxy | Fetch, transform, cache-header, and secret-leak tests |
 | User library access | UNVERIFIED | User policy folders | Restricted-user test |
@@ -99,3 +99,7 @@ Phase 10 adds `/socket` as a loss-tolerant hint channel. It uses the official Me
 ## Phase 11 evidence
 
 Phase 11 supplies sorted, recursively scoped Jellyfin additions through the frozen recently-added wrapper and the shared metadata/image adapters. Schema version 3 adds backend, server, external-item, and creation-generation provenance with a partial uniqueness constraint. A transactional first insert is the notification claim: metadata edits update that claim, while a distinct creation generation can notify again. Five-minute scans are authoritative and restart-safe; library websocket messages only accelerate the same scan. Existing newsletter grouping and rendering consume the normalized results unchanged.
+
+## Phase 12 evidence
+
+Phase 12 implements user-scoped cross-media search and BoxSet/playlist discovery using mapped identities and the shared metadata/image adapter. Results preserve the established grouped search wrapper. Collection and playlist helpers dispatch through the active backend, expose non-applicable Plex modes as neutral values, and never construct a `PlexServer` on Jellyfin paths. Container children resolve through the same canonical item-children operation.

@@ -229,6 +229,22 @@ class JellyfinClient:
             includeItemTypes=include_item_types,
             fields='DateCreated,ParentId,Path,ProviderIds,MediaSources,People,Genres,Tags,Studios')
 
+    def search_items(self, query, limit=50, user_id=None, include_item_types=None):
+        return self.get_items(
+            searchTerm=query, recursive=True, limit=int(limit), userId=user_id,
+            includeItemTypes=include_item_types,
+            fields='DateCreated,ParentId,ProviderIds,MediaSources,People,Genres,Tags,Studios')
+
+    def get_collections(self, parent_id=None, user_id=None, limit=100):
+        return self.get_items(
+            parentId=parent_id, userId=user_id, recursive=True, limit=int(limit),
+            includeItemTypes='BoxSet', fields='DateCreated,ChildCount,ProviderIds')
+
+    def get_playlists(self, user_id=None, limit=100):
+        return self.get_items(
+            userId=user_id, recursive=True, limit=int(limit), includeItemTypes='Playlist',
+            fields='DateCreated,ChildCount,ProviderIds,Overview')
+
     def get_ancestors(self, item_id, user_id=None):
         params = {'userId': user_id} if user_id is not None else None
         return self._request(

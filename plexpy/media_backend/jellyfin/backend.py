@@ -18,7 +18,7 @@ from plexpy.media_backend.jellyfin.activity import JellyfinActivityNormalizer
 
 
 JELLYFIN_CAPABILITIES = BackendCapabilities(
-    websocket_sessions=True, playlists=True, collections=True)
+    websocket_sessions=True, live_tv=True, playlists=True, collections=True)
 
 
 class JellyfinBackend(MediaBackend):
@@ -186,6 +186,15 @@ class JellyfinBackend(MediaBackend):
                 'filter_tv': '', 'filter_music': '', 'filter_photos': '',
             })
         return output
+
+    def get_live_tv_channels(self, **kwargs):
+        return self.client.get_live_tv_channels(**kwargs)
+
+    def get_live_tv_programs(self, **kwargs):
+        return self.client.get_live_tv_programs(**kwargs)
+
+    def get_live_tv_recordings(self, **kwargs):
+        return self.client.get_live_tv_recordings(**kwargs)
 
     def get_library_details(self):
         return self.get_libraries()

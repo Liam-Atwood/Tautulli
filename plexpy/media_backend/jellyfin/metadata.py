@@ -7,6 +7,7 @@ import time
 from urllib.parse import quote, unquote
 
 from plexpy.media_backend.errors import BackendConfigurationError, BackendFeatureUnsupportedError
+from plexpy import common
 from plexpy.media_backend.idmap import ENTITY_COLLECTION, ENTITY_ITEM, ENTITY_LIBRARY, ENTITY_PLAYLIST
 
 
@@ -134,6 +135,7 @@ class JellyfinMetadataAdapter:
                     library_name = ancestor.get('Name', '')
                     break
         entity = ENTITY_COLLECTION if media_type == 'collection' else ENTITY_PLAYLIST if media_type == 'playlist' else ENTITY_ITEM
+        is_live = item.get('Type') == 'LiveTvProgram' or bool(item.get('IsLive'))
         people = item.get('People') or []
         directors = [p.get('Name', '') for p in people if p.get('Type') == 'Director']
         writers = [p.get('Name', '') for p in people if p.get('Type') == 'Writer']
@@ -145,8 +147,9 @@ class JellyfinMetadataAdapter:
         thumb = make_image_reference(item['Id']) if item.get('ImageTags', {}).get('Primary') else ''
         art = make_image_reference(item['Id'], 'Backdrop') if item.get('BackdropImageTags') else ''
         metadata = {
-            'media_type': media_type, 'section_id': self._local(ENTITY_LIBRARY, library_external),
-            'library_name': library_name,
+            'media_type': media_type,
+            'section_id': common.LIVE_TV_SECTION_ID if is_live else self._local(ENTITY_LIBRARY, library_external),
+            'library_name': common.LIVE_TV_SECTION_NAME if is_live else library_name,
             'rating_key': self._local(entity, item['Id']),
             'parent_rating_key': self._local(ENTITY_ITEM, parent.get('Id')),
             'grandparent_rating_key': self._local(ENTITY_ITEM, grandparent.get('Id')),
@@ -176,6 +179,16 @@ class JellyfinMetadataAdapter:
             'media_info': self._media_info(item, media_source_id) if media_info else [],
             'media_backend': 'jellyfin', 'external_item_id': item['Id'],
             'external_library_id': library_external or None,
+            'live': int(is_live), 'live_uuid': str(item.get('ProgramId') or item.get('Id') or ''),
+            'channel_call_sign': item.get('ChannelName', ''),
+            'channel_id': item.get('ChannelNumber', ''),
+            'channel_identifier': item.get('ChannelId', ''),
+            'channel_title': item.get('ChannelName', ''),
+            'channel_thumb': (make_image_reference(item['ChannelId']) if item.get('ChannelId') else ''),
+            'channel_vcn': item.get('ChannelNumber', ''),
+            'external_channel_id': item.get('ChannelId') or None,
+            'external_program_id': item.get('ProgramId') or (item.get('Id') if is_live else None),
+            'external_recording_id': item.get('Id') if item.get('Type') == 'Recording' else None,
         }
         return metadata
 

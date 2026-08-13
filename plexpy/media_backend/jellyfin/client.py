@@ -245,6 +245,33 @@ class JellyfinClient:
             userId=user_id, recursive=True, limit=int(limit), includeItemTypes='Playlist',
             fields='DateCreated,ChildCount,ProviderIds,Overview')
 
+    def get_live_tv_channels(self, user_id=None, start=0, limit=100):
+        return self._request('GET', 'LiveTv/Channels', params={
+            'userId': user_id, 'startIndex': int(start), 'limit': int(limit),
+            'fields': 'PrimaryImageAspectRatio,MediaSources,ChannelInfo',
+        })
+
+    def get_live_tv_programs(self, channel_ids=None, user_id=None, start=0, limit=100,
+                             min_start_date=None, max_start_date=None):
+        return self._request('GET', 'LiveTv/Programs', params={
+            key: value for key, value in {
+                'channelIds': _comma_list(channel_ids), 'userId': user_id,
+                'startIndex': int(start), 'limit': int(limit),
+                'minStartDate': min_start_date, 'maxStartDate': max_start_date,
+                'fields': 'PrimaryImageAspectRatio,MediaSources,ChannelInfo',
+            }.items() if value is not None})
+
+    def get_live_tv_recordings(self, user_id=None, start=0, limit=100):
+        return self._request('GET', 'LiveTv/Recordings', params={
+            'userId': user_id, 'startIndex': int(start), 'limit': int(limit),
+            'fields': 'MediaSources,ProviderIds,DateCreated',
+        })
+
+    def get_live_tv_program(self, program_id, user_id=None):
+        return self._request(
+            'GET', 'LiveTv/Programs/{}'.format(quote(str(program_id), safe='')),
+            params={'userId': user_id} if user_id is not None else None)
+
     def get_ancestors(self, item_id, user_id=None):
         params = {'userId': user_id} if user_id is not None else None
         return self._request(

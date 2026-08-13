@@ -170,6 +170,15 @@ class JellyfinActivityNormalizer:
             'transcode_height': transcode.get('Height', ''),
             'transcode_hw_decoding': int(bool(transcode.get('HardwareAccelerationType'))),
             'transcode_hw_encoding': int(bool(transcode.get('HardwareAccelerationType'))),
+            'channel_call_sign': item.get('ChannelName') or metadata.get('channel_call_sign', ''),
+            'channel_id': item.get('ChannelNumber') or metadata.get('channel_id', ''),
+            'channel_identifier': item.get('ChannelId') or metadata.get('channel_identifier', ''),
+            'channel_title': item.get('ChannelName') or metadata.get('channel_title', ''),
+            'channel_thumb': metadata.get('channel_thumb', ''),
+            'channel_vcn': item.get('ChannelNumber') or metadata.get('channel_vcn', ''),
+            'external_channel_id': item.get('ChannelId') or metadata.get('external_channel_id'),
+            'external_program_id': item.get('ProgramId') or metadata.get('external_program_id'),
+            'external_recording_id': metadata.get('external_recording_id'),
         })
         return output
 

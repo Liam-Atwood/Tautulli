@@ -41,7 +41,7 @@ Statuses are evidence-based. `UNVERIFIED` means implementation or automated Jell
 | Search | FULL | User-scoped recursive item search | Cross-media grouping and compatibility-shape tests |
 | Collections | FULL | User-scoped BoxSet queries | Listing, mapped identity, metadata, child navigation, and helper-routing tests |
 | Playlists | FULL | Authorized user playlist queries | Listing, mapped identity, metadata, child navigation, and helper-routing tests |
-| Live TV | UNVERIFIED | Live TV APIs | Channel/program/recording tests |
+| Live TV | FULL | Version-neutral Live TV APIs | Channel, guide/program, recording, metadata, activity, provenance, and report tests |
 | Artwork | FULL | Token-safe image proxy | Fetch, transform, cache-header, and secret-leak tests |
 | User library access | UNVERIFIED | User policy folders | Restricted-user test |
 | Plex Relay | N/A | Do not fabricate an equivalent | Capability remains false |
@@ -103,3 +103,7 @@ Phase 11 supplies sorted, recursively scoped Jellyfin additions through the froz
 ## Phase 12 evidence
 
 Phase 12 implements user-scoped cross-media search and BoxSet/playlist discovery using mapped identities and the shared metadata/image adapter. Results preserve the established grouped search wrapper. Collection and playlist helpers dispatch through the active backend, expose non-applicable Plex modes as neutral values, and never construct a `PlexServer` on Jellyfin paths. Container children resolve through the same canonical item-children operation.
+
+## Phase 13 evidence
+
+Phase 13 adds channel, program/guide, recording, and program-detail operations. Live programs normalize as episodes in the established synthetic Live TV library, while recordings retain the established episodic-or-movie rule. Channel number, name, logo, external channel/program/recording provenance, guide duration, live state, and technical streams flow through metadata, activity, notification parameters, persisted history, and existing channel reports without Plex DVR or EPG requests.

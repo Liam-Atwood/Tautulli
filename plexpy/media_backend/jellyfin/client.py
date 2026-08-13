@@ -134,7 +134,7 @@ class JellyfinClient:
     def _url(self, endpoint):
         return '{}/{}'.format(self.base_url, str(endpoint).lstrip('/'))
 
-    def _request(self, method, endpoint, params=None, expect_image=False):
+    def _request(self, method, endpoint, params=None, expect_image=False, expect_bytes=False):
         method = method.upper()
         url = self._url(endpoint)
         started = time.monotonic()
@@ -166,6 +166,8 @@ class JellyfinClient:
                 content_type=response.headers.get('Content-Type'),
                 etag=response.headers.get('ETag'),
             )
+        if expect_bytes:
+            return response.content
         try:
             return response.json()
         except (ValueError, requests.exceptions.JSONDecodeError) as error:
@@ -271,6 +273,23 @@ class JellyfinClient:
         return self._request(
             'GET', 'LiveTv/Programs/{}'.format(quote(str(program_id), safe='')),
             params={'userId': user_id} if user_id is not None else None)
+
+    def stop_session(self, session_id):
+        self._request('POST', 'Sessions/{}/Playing/Stop'.format(
+            quote(str(session_id), safe='')))
+        return True
+
+    def get_devices(self):
+        return self._request('GET', 'Devices')
+
+    def get_logs(self):
+        return self._request('GET', 'System/Logs')
+
+    def get_log(self, name):
+        name = str(name or '')
+        if not name or name in ('.', '..') or '/' in name or '\\' in name or '\x00' in name:
+            raise BackendConfigurationError('Invalid Jellyfin log name')
+        return self._request('GET', 'System/Logs/Log', params={'name': name}, expect_bytes=True)
 
     def get_ancestors(self, item_id, user_id=None):
         params = {'userId': user_id} if user_id is not None else None

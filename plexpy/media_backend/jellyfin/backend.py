@@ -15,10 +15,12 @@ from plexpy.media_backend.idmap import (
 from plexpy.media_backend.jellyfin.client import JellyfinClient, JellyfinImage
 from plexpy.media_backend.jellyfin.metadata import JellyfinMetadataAdapter, parse_image_reference
 from plexpy.media_backend.jellyfin.activity import JellyfinActivityNormalizer
+from plexpy.media_backend.jellyfin.operations import JellyfinReleaseMonitor
 
 
 JELLYFIN_CAPABILITIES = BackendCapabilities(
-    websocket_sessions=True, live_tv=True, playlists=True, collections=True)
+    websocket_sessions=True, remote_session_stop=True, live_tv=True, playlists=True,
+    collections=True, server_update_status=True)
 
 
 class JellyfinBackend(MediaBackend):
@@ -43,6 +45,7 @@ class JellyfinBackend(MediaBackend):
         self._mapper = None
         self._metadata = None
         self._activity = None
+        self._release_monitor = None
 
     @property
     def capabilities(self):
@@ -270,8 +273,39 @@ class JellyfinBackend(MediaBackend):
             content_type='image/png' if output_format == 'PNG' else 'image/jpeg',
             etag='"{}"'.format(hashlib.sha256(data).hexdigest()),
         )
-    def terminate_session(self, session_id, message=None): self._unsupported('Session termination')
-    def get_devices(self): self._unsupported('Devices')
+    def terminate_session(self, session_id, message=None):
+        external_id = str(session_id or '')
+        if external_id.isdigit():
+            from plexpy import activity_processor
+            persisted = activity_processor.ActivityProcessor().get_session_by_key(external_id)
+            external_id = str((persisted or {}).get('external_session_id') or '')
+        if not external_id:
+            raise BackendConfigurationError('Jellyfin session identity is required')
+        return self.client.stop_session(external_id)
+
+    def get_devices(self):
+        result = self.client.get_devices() or {}
+        items = result.get('Items', result if isinstance(result, list) else [])
+        output = []
+        for item in items:
+            external_id = str(item.get('Id') or item.get('DeviceId') or '')
+            if not external_id:
+                continue
+            output.append({
+                'device_id': self.mapper.get_or_create('device', external_id),
+                'external_device_id': external_id, 'name': item.get('Name') or item.get('DeviceName') or '',
+                'client': item.get('AppName', ''), 'version': item.get('AppVersion', ''),
+                'platform': item.get('DeviceName', ''), 'user': item.get('LastUserName', ''),
+                'user_id': item.get('LastUserId', ''), 'ip_address': item.get('LastActivityDate', ''),
+                'last_seen': item.get('LastActivityDate', ''),
+            })
+        return output
+
+    def get_server_logs(self):
+        return self.client.get_logs()
+
+    def get_server_log(self, name, max_bytes=2 * 1024 * 1024):
+        return self.client.get_log(name)[:max(0, int(max_bytes))]
     def _normalize_container_list(self, result, entity, user_id=None, section_id=None):
         output = []
         for item in (result or {}).get('Items', []):
@@ -294,4 +328,14 @@ class JellyfinBackend(MediaBackend):
             parent_id=external_library, user_id=kwargs.get('user_id'), limit=kwargs.get('limit', 100))
         return self._normalize_container_list(
             result, ENTITY_COLLECTION, user_id=kwargs.get('user_id'), section_id=section_id)
-    def get_server_update_status(self): self._unsupported('Server update status')
+    def get_server_update_status(self):
+        self._ensure_connected()
+        if self._release_monitor is None:
+            self._release_monitor = JellyfinReleaseMonitor()
+        return self._release_monitor.check(self.client.server_version)
+
+    def get_update_staus(self):
+        return self.get_server_update_status()
+
+    def get_server_update_channel(self):
+        return 'stable'

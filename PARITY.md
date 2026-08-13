@@ -33,11 +33,11 @@ Statuses are evidence-based. `UNVERIFIED` means implementation or automated Jell
 | Transcode | FULL | `PlayMethod` and transcoding data | Video/audio transcode fixtures |
 | Hardware transcode indicator | UNVERIFIED | Hardware acceleration fields | Versioned integration fixture |
 | Exact Plex decode/encode labels | N/A | Preserve only authoritative Jellyfin facts | Document semantic difference |
-| Stream termination | UNVERIFIED | Session command where supported | Capability and integration tests |
+| Stream termination | FULL | Version-profiled session stop command | External-session resolution, success/error, capability, and integration tests |
 | Pause/resume remote controls | UNVERIFIED | Media-control capability | Supported/unsupported client tests |
 | Server up/down | FULL | Backend-neutral health connection | Startup success/failure tests |
 | Authentication failure | FULL | Structured HTTP auth errors | 401/403 tests |
-| Server update notification | UNVERIFIED | System/update API | Version-specific integration test |
+| Server update notification | FULL | Official stable Jellyfin GitHub releases | Version comparison, stable-only, cache, and feed-failure tests |
 | Search | FULL | User-scoped recursive item search | Cross-media grouping and compatibility-shape tests |
 | Collections | FULL | User-scoped BoxSet queries | Listing, mapped identity, metadata, child navigation, and helper-routing tests |
 | Playlists | FULL | Authorized user playlist queries | Listing, mapped identity, metadata, child navigation, and helper-routing tests |
@@ -49,7 +49,7 @@ Statuses are evidence-based. `UNVERIFIED` means implementation or automated Jell
 | Plex cloud mobile push | N/A | Use generic agents or active-session messaging | Agent capability documentation |
 | Exact client buffering | REQUIRES TELEMETRY | Optional telemetry extension | Stock and extended-mode tests |
 | Offline Sync inventory | REQUIRES TELEMETRY | Optional client integration | Capability-gated tests |
-| External reachability | UNVERIFIED | Backend-neutral external probe | Public endpoint test |
+| External reachability | N/A | Configured public URL is unverified without an external observer | Capability remains false; no external up/down events |
 | Tautulli public API | UNVERIFIED | Preserve compatibility fields | API contract regression suite |
 | Tautulli Remote | UNVERIFIED | Preserve compatible API surface | Client compatibility test |
 | Notifications and conditions | UNVERIFIED | Existing evaluation over normalized data | Per-trigger/agent tests |
@@ -107,3 +107,7 @@ Phase 12 implements user-scoped cross-media search and BoxSet/playlist discovery
 ## Phase 13 evidence
 
 Phase 13 adds channel, program/guide, recording, and program-detail operations. Live programs normalize as episodes in the established synthetic Live TV library, while recordings retain the established episodic-or-movie rule. Channel number, name, logo, external channel/program/recording provenance, guide duration, live state, and technical streams flow through metadata, activity, notification parameters, persisted history, and existing channel reports without Plex DVR or EPG requests.
+
+## Phase 14 evidence
+
+Phase 14 adds administrator-routed session stop using persisted external session identity, mapped device inventory, authenticated server log listing/retrieval with strict name validation and byte caps, and stable-release update comparison against the official Jellyfin GitHub release feed. Successful feed results are cached and feed failure is distinct from no update. The backend-neutral health model requires repeated connectivity failure before `DOWN`, exposes distinct authentication and unsupported-version states, and restores `UP` on authenticated success. Websocket state is excluded. A configured public URL remains explicitly unverified and `remote_access_probe` stays false.

@@ -116,6 +116,7 @@ WEBSOCKET = None
 WS_CONNECTED = False
 PLEX_SERVER_UP = None
 MEDIA_SERVER_UP = None
+MEDIA_SERVER_HEALTH = 'SUSPECT'
 PLEX_REMOTE_ACCESS_UP = None
 
 TRACKER = None
@@ -590,7 +591,7 @@ def start():
 
 def startup_refresh():
     if CONFIG.MEDIA_SERVER_TYPE == 'jellyfin':
-        global MEDIA_SERVER_UP, PLEX_SERVER_UP
+        global MEDIA_SERVER_UP, PLEX_SERVER_UP, MEDIA_SERVER_HEALTH
         if not CONFIG.FIRST_RUN_COMPLETE:
             logger.info("Setup wizard not completed. Skipping Jellyfin server connection.")
             return
@@ -598,6 +599,7 @@ def startup_refresh():
             from plexpy.media_backend.factory import get_media_backend
             get_media_backend('jellyfin').get_server_info()
             MEDIA_SERVER_UP = PLEX_SERVER_UP = True
+            MEDIA_SERVER_HEALTH = 'UP'
             logger.info("Connected to Jellyfin server.")
             if CONFIG.REFRESH_LIBRARIES_ON_STARTUP:
                 libraries.refresh_libraries()
@@ -607,7 +609,11 @@ def startup_refresh():
             if getattr(CONFIG, 'JELLYFIN_WEBSOCKET_ENABLED', True):
                 web_socket.start_thread()
         except Exception as error:
-            MEDIA_SERVER_UP = PLEX_SERVER_UP = False
+            from plexpy.media_backend.errors import BackendAuthError, BackendFeatureUnsupportedError
+            MEDIA_SERVER_HEALTH = ('AUTH_FAILED' if isinstance(error, BackendAuthError) else
+                                   'UNSUPPORTED_VERSION' if isinstance(error, BackendFeatureUnsupportedError)
+                                   else 'SUSPECT')
+            MEDIA_SERVER_UP = PLEX_SERVER_UP = None
             logger.error("Unable to connect to Jellyfin server: %s", error)
         return
 

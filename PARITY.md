@@ -21,7 +21,7 @@ Statuses are evidence-based. `UNVERIFIED` means implementation or automated Jell
 | Users | FULL | Jellyfin `/Users` policy normalization | Phase 8 authoritative sync and preference-preservation tests |
 | Libraries | FULL | Jellyfin virtual folders and item totals | Phase 8 type/count and transactional replacement tests |
 | Concurrent streams | FULL | Existing concurrency rules | Deterministic overlap report fixture |
-| New-device notifications | UNVERIFIED | Stable `DeviceId` | Notification trigger test |
+| New-device notifications | FULL | Stable mapped `DeviceId` plus user identity | First-device-only lifecycle and notification matrix tests |
 | Recently added | FULL | Sorted Jellyfin item queries plus authoritative scans | Pagination, ordering, generation deduplication, migration, and restart-safe scan tests |
 | Newsletters | FULL | Existing renderer over normalized recent metadata | Existing newsletter grouping/rendering plus backend image-proxy contract tests |
 | Metadata pages | FULL | `BaseItemDto` normalization | Media-type contract suite |
@@ -31,10 +31,10 @@ Statuses are evidence-based. `UNVERIFIED` means implementation or automated Jell
 | Direct Play | FULL | `PlayMethod` | Direct-play fixture and live playback report |
 | Direct Stream | FULL | `PlayMethod` | Direct-stream fixture |
 | Transcode | FULL | `PlayMethod` and transcoding data | Video/audio transcode fixtures |
-| Hardware transcode indicator | UNVERIFIED | Hardware acceleration fields | Versioned integration fixture |
+| Hardware transcode indicator | FULL | Authoritative transcoder acceleration fields | Transcode activity fixtures |
 | Exact Plex decode/encode labels | N/A | Preserve only authoritative Jellyfin facts | Document semantic difference |
 | Stream termination | FULL | Version-profiled session stop command | External-session resolution, success/error, capability, and integration tests |
-| Pause/resume remote controls | UNVERIFIED | Media-control capability | Supported/unsupported client tests |
+| Pause/resume remote controls | N/A | Not exposed as a canonical operation | Remote stop only; do not imply client control |
 | Server up/down | FULL | Backend-neutral health connection | Startup success/failure tests |
 | Authentication failure | FULL | Structured HTTP auth errors | 401/403 tests |
 | Server update notification | FULL | Official stable Jellyfin GitHub releases | Version comparison, stable-only, cache, and feed-failure tests |
@@ -43,7 +43,7 @@ Statuses are evidence-based. `UNVERIFIED` means implementation or automated Jell
 | Playlists | FULL | Authorized user playlist queries | Listing, mapped identity, metadata, child navigation, and helper-routing tests |
 | Live TV | FULL | Version-neutral Live TV APIs | Channel, guide/program, recording, metadata, activity, provenance, and report tests |
 | Artwork | FULL | Token-safe image proxy | Fetch, transform, cache-header, and secret-leak tests |
-| User library access | UNVERIFIED | User policy folders | Restricted-user test |
+| User library access | FULL | Jellyfin user folder policies | `EnableAllFolders`, restricted-folder, inactive-user, search, and playlist visibility tests |
 | Plex Relay | N/A | Do not fabricate an equivalent | Capability remains false |
 | Plex Pass | N/A | Remove premium gating later | UI and config audit |
 | Plex cloud mobile push | N/A | Use generic agents or active-session messaging | Agent capability documentation |
@@ -52,7 +52,7 @@ Statuses are evidence-based. `UNVERIFIED` means implementation or automated Jell
 | External reachability | N/A | Configured public URL is unverified without an external observer | Capability remains false; no external up/down events |
 | Tautulli public API | UNVERIFIED | Preserve compatibility fields | API contract regression suite |
 | Tautulli Remote | UNVERIFIED | Preserve compatible API surface | Client compatibility test |
-| Notifications and conditions | UNVERIFIED | Existing evaluation over normalized data | Per-trigger/agent tests |
+| Notifications and conditions | FULL | Backend capability matrix over normalized data | Every trigger and agent classified; generic transports tested at their boundary |
 | Exports | UNVERIFIED | Existing exporter over normalized metadata | Export regression tests |
 | Database backup | UNVERIFIED | Existing implementation unchanged | Backup/restore smoke test |
 | Configuration backup | UNVERIFIED | Existing implementation unchanged | Round-trip test |
@@ -111,3 +111,9 @@ Phase 13 adds channel, program/guide, recording, and program-detail operations. 
 ## Phase 14 evidence
 
 Phase 14 adds administrator-routed session stop using persisted external session identity, mapped device inventory, authenticated server log listing/retrieval with strict name validation and byte caps, and stable-release update comparison against the official Jellyfin GitHub release feed. Successful feed results are cached and feed failure is distinct from no update. The backend-neutral health model requires repeated connectivity failure before `DOWN`, exposes distinct authentication and unsupported-version states, and restores `UP` on authenticated success. Websocket state is excluded. A configured public URL remains explicitly unverified and `remote_access_probe` stays false.
+
+## Phase 15 trigger and agent evidence
+
+Every existing trigger has an explicit Jellyfin disposition. Play, stop, pause, resume, watched, transcode change, concurrency, new device, recently added, internal server down/up, authentication failure (through the token-expired compatibility name), server update, and Tautulli-owned events are `FULL`. Exact buffering is `REQUIRES TELEMETRY`. Playback error, marker events, and external reachability are `N/A` because stock Jellyfin does not provide authoritative evidence for them; missing sessions and display text never synthesize those events.
+
+Every existing agent is examined. Plex Home Theater and Plex mobile/cloud delivery are `N/A` and are hidden/effectively disabled while Jellyfin is active; their stored rows and active flags are untouched and reappear when Plex is selected. All other agents—including Email, Discord, Telegram, Slack, Webhook, MQTT, Pushover, Gotify, scripts, and browser delivery—are backend-independent and `FULL`; their established render, condition, attachment, queue, logging, retry, and transport-boundary tests remain authoritative.

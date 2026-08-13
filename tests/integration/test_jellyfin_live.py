@@ -45,6 +45,19 @@ def test_supported_jellyfin_server_contract(jellyfin_server):
         libraries = client.get_libraries()
         assert any(library['Name'] == 'Phase Three Music' for library in libraries)
 
+        latest = client.get_latest_items(
+            limit=10, include_item_types='Audio', user_id=server.user_id)
+        assert any(item['Id'] == server.item_id for item in latest['Items'])
+        searched = client.search_items('Phase Three Fixture', user_id=server.user_id)
+        assert any(item['Id'] == server.item_id for item in searched['Items'])
+        assert isinstance(client.get_collections(user_id=server.user_id), dict)
+        assert isinstance(client.get_playlists(user_id=server.user_id), dict)
+        assert isinstance(client.get_devices(), dict)
+        assert isinstance(client.get_logs(), list)
+        assert isinstance(client.get_live_tv_channels(user_id=server.user_id), dict)
+        assert isinstance(client.get_live_tv_programs(user_id=server.user_id), dict)
+        assert isinstance(client.get_live_tv_recordings(user_id=server.user_id), dict)
+
         items = client.get_items(
             recursive=True, searchTerm='Phase Three Fixture', includeItemTypes='Audio',
             fields=['Path', 'MediaSources'])

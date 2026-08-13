@@ -81,6 +81,13 @@ def add_notifier_each(notifier_id=None, notify_action=None, stream_data=None, ti
         logger.debug("Tautulli NotificationHandler :: Notify called but no action received.")
         return
 
+    if getattr(plexpy.CONFIG, 'MEDIA_SERVER_TYPE', 'plex') == 'jellyfin' and not manual_trigger:
+        from plexpy.media_backend.jellyfin.notifications import trigger_available
+        if not trigger_available(notify_action):
+            logger.debug("Jellyfin notification trigger '%s' is unavailable without authoritative telemetry.",
+                         notify_action)
+            return
+
     if notifier_id:
         # Send to a specific notifier regardless if it is enabled
         notifiers_enabled = notifiers.get_notifiers(notifier_id=notifier_id)

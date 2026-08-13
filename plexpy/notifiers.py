@@ -274,6 +274,9 @@ def available_notification_agents():
                        'action_types': ('all',)
                        })
 
+    if getattr(plexpy.CONFIG, 'MEDIA_SERVER_TYPE', 'plex') == 'jellyfin':
+        from plexpy.media_backend.jellyfin.notifications import agent_available
+        return [agent for agent in agents if agent_available(agent['name'])]
     return agents
 
 
@@ -514,6 +517,10 @@ def get_notifiers(notifier_id=None, notify_action=None):
 
     for item in result:
         item['active'] = int(any([item.pop(k) for k in list(item.keys()) if k in notify_actions]))
+
+    if getattr(plexpy.CONFIG, 'MEDIA_SERVER_TYPE', 'plex') == 'jellyfin':
+        from plexpy.media_backend.jellyfin.notifications import agent_available
+        result = [item for item in result if agent_available(item['agent_name'])]
 
     return result
 
